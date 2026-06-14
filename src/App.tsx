@@ -593,21 +593,36 @@ export default function App() {
                       </div>
                     ))}
 
-                    {editorSubTab === "drones" && config.drones.map((d, index) => (
-                      <div key={index} className="bg-slate-950/80 p-3 rounded-lg border border-slate-850 flex flex-col gap-2 relative group hover:border-slate-700 transition-all">
-                        <div className="flex items-center justify-between pb-1 border-b border-slate-850">
-                          <span className="text-xs font-mono font-bold text-indigo-400">🛸 无人机 D-H{d.hospital_id}.B{d.berth_id}</span>
-                          <button onClick={() => removeDrone(index)} className="text-rose-450 hover:text-rose-500 transition-opacity p-0.5 cursor-pointer">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                    {editorSubTab === "drones" && config.drones.map((d, index) => {
+                      const assocAssignment = solution?.x_assignments.find(x => x.hospital_id === d.hospital_id && x.berth_id === d.berth_id);
+                      const assocTask = assocAssignment ? config.tasks.find(t => t.id === assocAssignment.task_id) : null;
+
+                      return (
+                        <div key={index} className="bg-slate-950/80 p-3 rounded-lg border border-slate-850 flex flex-col gap-2 relative group hover:border-slate-700 transition-all">
+                          <div className="flex items-center justify-between pb-1 border-b border-slate-850">
+                            <span className="text-xs font-mono font-bold text-indigo-400">🛸 无人机 D-H{d.hospital_id}.B{d.berth_id}</span>
+                            <button onClick={() => removeDrone(index)} className="text-rose-450 hover:text-rose-500 transition-opacity p-0.5 cursor-pointer">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-[11px] font-mono">
+                            <div><span className="text-slate-500">限载:</span> <span className="text-slate-200">{d.max_payload}kg</span></div>
+                            <div><span className="text-slate-500">自重:</span> <span className="text-slate-200">{d.weight}kg</span></div>
+                            <div><span className="text-slate-500">时速:</span> <span className="text-slate-200">{d.speed}m/s</span></div>
+                          </div>
+                          {assocTask ? (
+                            <div className="mt-1 pb-1 pt-1.5 px-2 bg-indigo-950/40 border border-indigo-900/40 rounded text-[10px] text-indigo-300 font-mono flex justify-between items-center">
+                              <span>已承接任务: <span className="text-white font-bold">#{assocTask.id}</span></span>
+                              <span>H{assocTask.origin} → H{assocTask.destination}</span>
+                            </div>
+                          ) : (
+                            <div className="mt-1 pb-1 pt-1.5 px-2 bg-slate-900/60 border border-slate-850 rounded text-[10px] text-slate-500 italic text-center font-mono">
+                              待命中 (On Standby)
+                            </div>
+                          )}
                         </div>
-                        <div className="grid grid-cols-3 gap-2 text-[11px] font-mono">
-                          <div><span className="text-slate-500">限载:</span> <span className="text-slate-200">{d.max_payload}kg</span></div>
-                          <div><span className="text-slate-500">自重:</span> <span className="text-slate-200">{d.weight}kg</span></div>
-                          <div><span className="text-slate-500">时速:</span> <span className="text-slate-200">{d.speed}m/s</span></div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {editorSubTab === "tasks" && config.tasks.map((t) => (
                       <div key={t.id} className="bg-slate-950/80 p-3 rounded-lg border border-slate-850 flex flex-col gap-2 relative group hover:border-slate-700 transition-all">
@@ -864,12 +879,15 @@ export default function App() {
                       config.drones.map((d, dIdx) => {
                         const faultKey = `${d.hospital_id}_${d.berth_id}`;
                         const currentFault = droneFaults[faultKey] || "normal";
+                        const isLocked = lockedBerths[faultKey];
+                        const matchAssignment = solution?.x_assignments.find(x => x.hospital_id === d.hospital_id && x.berth_id === d.berth_id);
+                        const matchTask = matchAssignment ? config.tasks.find(t => t.id === matchAssignment.task_id) : null;
 
                         return (
                           <div key={dIdx} className="bg-slate-950 p-3 rounded-xl border border-slate-850 flex flex-col gap-2 hover:border-slate-700 transition">
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-amber-400 font-bold">D-H{d.hospital_id}. berth#{d.berth_id}</span>
-                              <span className={`w-2 h-2 rounded-full ${currentFault === "normal" ? "bg-emerald-500" : "bg-rose-500 animate-ping"}`} />
+                              <span className={`w-2 h-2 rounded-full ${isLocked || currentFault !== "normal" ? "bg-rose-500 animate-pulse" : "bg-emerald-500"}`} />
                             </div>
 
                             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-400 mt-1">
@@ -877,6 +895,27 @@ export default function App() {
                               <div>最高负载: <span className="text-white">{d.max_payload}kg</span></div>
                               <div>航定能效: <span className="text-emerald-400 font-bold">{d.battery_max} J</span></div>
                               <div>诊断阻抗: <span className="text-emerald-400">14 mΩ (良)</span></div>
+                            </div>
+
+                            {/* Assigned Task Info Panel */}
+                            <div className="mt-1 bg-slate-900 rounded p-1.5 text-[10px] text-slate-350 border border-slate-850">
+                              {isLocked ? (
+                                <span className="text-rose-450 text-rose-450 text-rose-400 font-semibold flex items-center gap-1">🛠️ 泊机口已锁定 Lockout Range</span>
+                              ) : currentFault !== "normal" ? (
+                                <span className="text-rose-400 font-semibold flex items-center gap-1">⚠️ 发生设备故障 Command Offline</span>
+                              ) : matchTask ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="text-teal-400 font-bold flex items-center gap-1 justify-between">
+                                    <span>📦 精准配送中 (Task #{matchTask.id})</span>
+                                    <span className="text-[9px] bg-teal-950 px-1 py-0.2 rounded border border-teal-900 text-teal-300 font-sans">FLYING</span>
+                                  </div>
+                                  <div className="text-[9px] text-slate-450 text-slate-400 mt-0.5">
+                                    始发起降 H{matchTask.origin} → 终到投靶 H{matchTask.destination}，货重 {matchTask.weight} kg
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic flex items-center gap-1 font-sans">💤 无人机就位备航中 (Idle / Standby)</span>
+                              )}
                             </div>
 
                             <div className="flex justify-between items-center pt-2 border-t border-slate-900 mt-1 text-[10px]">
@@ -1325,6 +1364,8 @@ export default function App() {
                       const key = `${d.hospital_id}_${d.berth_id}`;
                       const isLocked = lockedBerths[key];
                       const isOffline = droneFaults[key] === "offline";
+                      const matchAssignment = solution?.x_assignments.find(x => x.hospital_id === d.hospital_id && x.berth_id === d.berth_id);
+                      const matchTask = matchAssignment ? config.tasks.find(t => t.id === matchAssignment.task_id) : null;
 
                       return (
                         <div key={index} className="bg-slate-950 p-2.5 rounded-lg border border-slate-850 relative font-mono text-[11px]">
@@ -1341,6 +1382,19 @@ export default function App() {
                               <span>估算能耗: {solEnergy.toFixed(1)} J / <span className="text-slate-500">{d.battery_max} J</span></span>
                             )}
                           </div>
+                          {!isOffline && matchTask && (
+                            <div className="text-[10px] text-teal-400 font-bold mb-1.5 bg-teal-950/40 border border-teal-900/30 p-1.5 rounded flex flex-col gap-0.5">
+                              <div>📦 执飞配送中: 订单 #{matchTask.id}</div>
+                              <div className="text-slate-400 font-normal text-[9px]">
+                                起运 H{matchTask.origin} → 投靶 H{matchTask.destination} (货重 {matchTask.weight} kg)
+                              </div>
+                            </div>
+                          )}
+                          {!isOffline && !matchTask && (
+                            <div className="text-[10px] text-slate-500 mb-1.5 italic">
+                              💤 待命中: 暂无分配指标
+                            </div>
+                          )}
                           {!isOffline && (
                             <div className="w-full bg-slate-900 rounded-full h-1 overflow-hidden">
                               <div 
