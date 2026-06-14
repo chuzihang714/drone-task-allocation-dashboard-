@@ -1,0 +1,6 @@
+{
+  "name": "Drone Task Allocation Dashboard",
+  "description": "An interactive full-stack solver and dashboard for clinical drone delivery routing and task allocation optimization using Pyomo, MIP and Branch-and-Bound algorithms.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

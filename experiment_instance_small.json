@@ -1,0 +1,204 @@
+{
+  "hospitals": [
+    {
+      "id": 1,
+      "name": "Center Hospital A (H1)",
+      "longitude": 19.6,
+      "latitude": -2.5,
+      "type": "central",
+      "capacity": 2,
+      "berths": [
+        1,
+        2,
+        3
+      ],
+      "initial_empty": 1
+    },
+    {
+      "id": 2,
+      "name": "Medical Hub B (H2)",
+      "longitude": -15,
+      "latitude": -5.5,
+      "type": "substation",
+      "capacity": 2,
+      "berths": [
+        1,
+        2,
+        3
+      ],
+      "initial_empty": 1
+    },
+    {
+      "id": 3,
+      "name": "Clinic C (H3)",
+      "longitude": 4.7,
+      "latitude": -0.6,
+      "type": "substation",
+      "capacity": 4,
+      "berths": [
+        1,
+        2,
+        3
+      ],
+      "initial_empty": 2
+    },
+    {
+      "id": 4,
+      "name": "Emergency D (H4)",
+      "longitude": -9.5,
+      "latitude": -2.6,
+      "type": "substation",
+      "capacity": 2,
+      "berths": [
+        1,
+        2,
+        3
+      ],
+      "initial_empty": 1
+    },
+    {
+      "id": 5,
+      "name": "Pharmacy E (H5)",
+      "longitude": -2.8,
+      "latitude": 18.9,
+      "type": "substation",
+      "capacity": 2,
+      "berths": [
+        1,
+        2,
+        3
+      ],
+      "initial_empty": 1
+    },
+    {
+      "id": 6,
+      "name": "Substation F (H6)",
+      "longitude": -0.5,
+      "latitude": -19.7,
+      "type": "substation",
+      "capacity": 4,
+      "berths": [
+        1,
+        2,
+        3
+      ],
+      "initial_empty": 2
+    }
+  ],
+  "drones": [
+    {
+      "hospital_id": 1,
+      "berth_id": 1,
+      "weight": 1.6,
+      "max_payload": 2.5,
+      "battery_max": 219,
+      "speed": 14
+    },
+    {
+      "hospital_id": 2,
+      "berth_id": 1,
+      "weight": 2.1,
+      "max_payload": 3.5,
+      "battery_max": 201,
+      "speed": 11
+    },
+    {
+      "hospital_id": 3,
+      "berth_id": 1,
+      "weight": 3,
+      "max_payload": 2.8,
+      "battery_max": 246,
+      "speed": 11
+    },
+    {
+      "hospital_id": 4,
+      "berth_id": 1,
+      "weight": 2.7,
+      "max_payload": 3.6,
+      "battery_max": 232,
+      "speed": 14
+    },
+    {
+      "hospital_id": 5,
+      "berth_id": 1,
+      "weight": 2.4,
+      "max_payload": 3.3,
+      "battery_max": 246,
+      "speed": 13
+    },
+    {
+      "hospital_id": 6,
+      "berth_id": 1,
+      "weight": 2.8,
+      "max_payload": 3.9,
+      "battery_max": 222,
+      "speed": 11
+    },
+    {
+      "hospital_id": 1,
+      "berth_id": 2,
+      "weight": 1.8,
+      "max_payload": 3.0,
+      "battery_max": 250,
+      "speed": 12
+    },
+    {
+      "hospital_id": 3,
+      "berth_id": 2,
+      "weight": 2.2,
+      "max_payload": 3.2,
+      "battery_max": 240,
+      "speed": 13
+    }
+  ],
+  "tasks": [
+    {
+      "id": 1,
+      "origin": 1,
+      "destination": 6,
+      "weight": 1.9
+    },
+    {
+      "id": 2,
+      "origin": 1,
+      "destination": 4,
+      "weight": 0.9
+    },
+    {
+      "id": 3,
+      "origin": 3,
+      "destination": 5,
+      "weight": 1.7
+    },
+    {
+      "id": 4,
+      "origin": 1,
+      "destination": 4,
+      "weight": 1.8
+    },
+    {
+      "id": 5,
+      "origin": 1,
+      "destination": 3,
+      "weight": 1.5
+    },
+    {
+      "id": 6,
+      "origin": 1,
+      "destination": 3,
+      "weight": 0.6
+    },
+    {
+      "id": 7,
+      "origin": 2,
+      "destination": 6,
+      "weight": 0.7
+    },
+    {
+      "id": 8,
+      "origin": 3,
+      "destination": 5,
+      "weight": 1.4
+    }
+  ]
+}
