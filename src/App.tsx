@@ -3,23 +3,73 @@ import {
   Activity, Zap, Navigation, MapPin, Play, Sliders, Plus, Trash2, Cpu, Clock, 
   Compass, BarChart2, ShieldAlert, Award, FileText, CheckCircle2, AlertTriangle, 
   RefreshCw, Users, ShieldCheck, Heart, User, Power, ToggleLeft, ToggleRight,
-  Database, Download, Upload, History, ScrollText, Radio, BatteryCharging, ChevronRight, Gauge
+  Database, Download, Upload, History, ScrollText, Radio, BatteryCharging, ChevronRight, Gauge,
+  Maximize2, Minimize2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { gsap } from "gsap";
 import { 
   Hospital, Drone, Task, ProblemConfigData, SolverSolution, ComparisonReport 
 } from "./types";
-import { precomputedCases, PrecomputedCase } from "./data";
+import { precomputedCases, PrecomputedCase, JIADING_HOSPITALS } from "./data";
 
 export default function App() {
   // 1. Role Selection States
-  const [userRole, setUserRole] = useState<"admin" | "hospital" | "drone_admin">("admin");
+  const [userRole, setUserRole] = useState<"admin" | "hospital" | "drone_admin" | null>(null);
   const [activeHospitalId, setActiveHospitalId] = useState<number>(1);
+  const [isMapFullScreen, setIsMapFullScreen] = useState<boolean>(false);
 
   // 2. Scenario Config States - Loaded from our precomputed cases
-  const [activeCaseId, setActiveCaseId] = useState<string>("dorling-small-low");
+  const [activeCaseId, setActiveCaseId] = useState<string>("jiading-low-pressure");
   const [config, setConfig] = useState<ProblemConfigData>(precomputedCases[0].config);
+
+  // Interactive Pan / Zoom states for the Map
+  const [zoom, setZoom] = useState<number>(1);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Map mouse / wheel interaction handlers
+  const handleMapMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Left click only
+    setIsPanning(true);
+    setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+  };
+
+  const handleMapMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPanning) return;
+    setPanOffset({
+      x: e.clientX - panStart.x,
+      y: e.clientY - panStart.y
+    });
+  };
+
+  const handleMapMouseUpOrLeave = () => {
+    setIsPanning(false);
+  };
+
+  const handleMapWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+    setZoom(prev => Math.max(0.6, Math.min(prev * zoomFactor, 6)));
+  };
+
+  // Trajectory curve generator
+  const getSymmetricCurvePath = (x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) return `M ${x1} ${y1} L ${x2} ${y2}`;
+    const cx = (x1 + x2) / 2 - (dy * 0.12);
+    const cy = (y1 + y2) / 2 + (dx * 0.12);
+    return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+  };
+
+  useEffect(() => {
+    if (userRole !== "admin") {
+      setActiveTab("visualizer");
+    }
+  }, [userRole]);
 
   // 3. Operational Limits & Controls
   const [algorithm, setAlgorithm] = useState<string>("branch_and_bound");
@@ -259,10 +309,10 @@ export default function App() {
     const xCoords = coords.map(c => c[0]);
     const yCoords = coords.map(c => c[1]);
 
-    const minX = xCoords.length > 0 ? Math.min(...xCoords) - 15 : -35;
-    const maxX = xCoords.length > 0 ? Math.max(...xCoords) + 15 : 35;
-    const minY = yCoords.length > 0 ? Math.min(...yCoords) - 15 : -35;
-    const maxY = yCoords.length > 0 ? Math.max(...yCoords) + 15 : 35;
+    const minX = xCoords.length > 0 ? Math.min(...xCoords) - 0.02 : 121.15;
+    const maxX = xCoords.length > 0 ? Math.max(...xCoords) + 0.02 : 121.28;
+    const minY = yCoords.length > 0 ? Math.min(...yCoords) - 0.02 : 31.30;
+    const maxY = yCoords.length > 0 ? Math.max(...yCoords) + 0.02 : 31.43;
 
     return { minX, maxX, minY, maxY };
   };
@@ -271,12 +321,12 @@ export default function App() {
 
   const projectX = (val: number) => {
     const range = maxX - minX || 1;
-    return `${((val - minX) / range) * 100}%`;
+    return ((val - minX) / range) * 800;
   };
 
   const projectY = (val: number) => {
     const range = maxY - minY || 1;
-    return `${(1 - (val - minY) / range) * 100}%`;
+    return (1 - (val - minY) / range) * 600;
   };
 
   const getHospitalName = (id: number) => {
@@ -286,19 +336,15 @@ export default function App() {
 
   // CRUD Data Management 
   const addHospital = () => {
-    const nextId = config.hospitals.length > 0 ? Math.max(...config.hospitals.map(h => h.id)) + 1 : 1;
-    const newHospital: Hospital = {
-      id: nextId,
-      name: `医疗中继配送站 H${nextId}`,
-      longitude: Math.round((Math.random() * 50 - 25) * 10) / 10,
-      latitude: Math.round((Math.random() * 50 - 25) * 10) / 10,
-      type: "substation",
-      capacity: 3,
-      berths: [1, 2, 3],
-      initial_empty: 1
-    };
-    setConfig(prev => ({ ...prev, hospitals: [...prev.hospitals, newHospital] }));
-    addEmergencyLog(`已在云内存追加新增中继配送终端：H${nextId}`, "success");
+    const existingIds = new Set(config.hospitals.map(h => h.id));
+    const nextHospital = JIADING_HOSPITALS.find(h => !existingIds.has(h.id));
+    
+    if (!nextHospital) {
+      addEmergencyLog(`⚠️ 所有嘉定区医院航站均在编，无额外中继医院。`, "warning");
+      return;
+    }
+    setConfig(prev => ({ ...prev, hospitals: [...prev.hospitals, nextHospital] }));
+    addEmergencyLog(`已在地图追加新增嘉定真实航站：H${nextHospital.id} (${nextHospital.name})`, "success");
   };
 
   const removeHospital = (id: number) => {
@@ -446,41 +492,15 @@ export default function App() {
 
         {/* Cohesive Role Selector buttons */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+          {userRole !== null && (
             <button
-              onClick={() => { setUserRole("admin"); addEmergencyLog("已转切至「系统总指挥管理员视角」", "info"); }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                userRole === "admin"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
-                  : "text-slate-400 hover:text-white"
-              }`}
+              onClick={() => { setUserRole(null); setSelectedTask(null); setActiveTab("visualizer"); }}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 border border-dashed border-slate-800 transition-all cursor-pointer"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>👑 系统管理员</span>
+              <Power className="w-3.5 h-3.5 text-rose-500" />
+              <span>🚪 退出到主页</span>
             </button>
-            <button
-              onClick={() => { setUserRole("hospital"); addEmergencyLog("已转切至「分院临床医护提交视角」", "info"); }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                userRole === "hospital"
-                  ? "bg-emerald-600/90 text-white shadow-md shadow-emerald-500/25"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Heart className="w-3.5 h-3.5" />
-              <span>🏥 医院医务人员</span>
-            </button>
-            <button
-              onClick={() => { setUserRole("drone_admin"); addEmergencyLog("已转切至「无人机运维巡检测诊视角」", "info"); }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                userRole === "drone_admin"
-                  ? "bg-amber-600/95 text-white shadow-md shadow-amber-500/25"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Cpu className="w-3.5 h-3.5" />
-              <span>⚡ 无人机管理员</span>
-            </button>
-          </div>
+          )}
 
           <div className="hidden lg:flex items-center gap-2 text-xs font-mono pr-2">
             <Clock className="w-3.5 h-3.5 text-indigo-400" />
@@ -495,12 +515,15 @@ export default function App() {
         {/* ========================================================== */}
         {/* COLUMN 1 (4/12): DYNAMIC USER PERSPECTIVES */}
         {/* ========================================================== */}
-        <section className="col-span-12 xl:col-span-4 flex flex-col gap-4 overflow-hidden h-full">
-          
-          <AnimatePresence mode="wait">
+        {userRole !== null && (
+          <section className={`${
+            userRole === "admin" ? "col-span-12 xl:col-span-3" : "col-span-12"
+          } flex flex-col gap-4 overflow-hidden h-full`}>
             
-            {/* VIEW A: ADMIN CONTROL PANEL */}
-            {userRole === "admin" && (
+            <AnimatePresence mode="wait">
+              
+              {/* VIEW A: ADMIN CONTROL PANEL */}
+              {userRole === "admin" && (
               <motion.div 
                 key="admin"
                 initial={{ opacity: 0, x: -15 }}
@@ -624,72 +647,55 @@ export default function App() {
                       );
                     })}
 
-                    {editorSubTab === "tasks" && config.tasks.map((t) => (
-                      <div key={t.id} className="bg-slate-950/80 p-3 rounded-lg border border-slate-850 flex flex-col gap-2 relative group hover:border-slate-700 transition-all">
-                        <div className="flex items-center justify-between pb-1 border-b border-slate-850">
-                          <span className="text-xs font-mono font-bold text-indigo-400">📦 物资配送派单 #{t.id}</span>
-                          <button onClick={() => removeTask(t.id)} className="text-rose-450 hover:text-rose-500 transition-opacity p-0.5 cursor-pointer">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                    {editorSubTab === "tasks" && config.tasks.map((t) => {
+                      const isSelected = selectedTask?.id === t.id;
+                      return (
+                        <div 
+                          key={t.id} 
+                          onClick={() => setSelectedTask(isSelected ? null : t)}
+                          className={`p-3.5 rounded-xl border flex flex-col gap-2.5 relative group hover:border-indigo-500/50 transition-all cursor-pointer ${
+                            isSelected 
+                              ? "bg-indigo-950/40 border-indigo-500 shadow-lg shadow-indigo-500/10"
+                              : "bg-slate-950/80 border-slate-850"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between pb-1 border-b border-slate-850">
+                            <span className="text-xs font-mono font-bold text-indigo-400">📦 物资配送派单 #{t.id}</span>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); removeTask(t.id); }} 
+                              className="text-rose-450 hover:text-rose-500 transition-opacity p-0.5 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-xs font-mono text-center">
+                            <div><span className="text-slate-500 block text-[10px]">发货中心</span> <span className="text-slate-200 font-bold">H{t.origin}</span></div>
+                            <div><span className="text-slate-500 block text-[10px]">收货站点</span> <span className="text-slate-200 font-bold">H{t.destination}</span></div>
+                            <div><span className="text-slate-500 block text-[10px]">货重 (kg)</span> <span className="text-amber-400 font-bold">{t.weight}</span></div>
+                          </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-center">
-                          <div><span className="text-slate-500 block">发货中心</span> <span className="text-slate-250 font-bold">H{t.origin}</span></div>
-                          <div><span className="text-slate-500 block">收货站点</span> <span className="text-slate-250 font-bold">H{t.destination}</span></div>
-                          <div><span className="text-slate-500 block">货重 (kg)</span> <span className="text-amber-500 font-bold">{t.weight}</span></div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Optimization solver configuration sliders */}
+                {/* Simplified One-Click Optimization Solver Panel */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-3 shadow-md shrink-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white font-bold text-xs flex items-center gap-1.5">
-                      <Cpu className="w-4 h-4 text-indigo-400" />
-                      <span>多连通三段航程 MILP 求解框架</span>
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-[10px] font-mono text-slate-400">
-                    <div className="flex flex-col gap-1">
-                      <span>切面算法模型:</span>
-                      <select 
-                        value={algorithm} 
-                        onChange={(e) => setAlgorithm(e.target.value)}
-                        className="bg-slate-950 border border-slate-850 text-slate-200 rounded-lg p-2 Outline-none"
-                      >
-                        <option value="branch_and_bound">分支定界与次梯度割 plane</option>
-                        <option value="single_task_mip">单任务简化 MILP 基准模型</option>
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <span>求解限时 (Sec):</span>
-                      <input 
-                        type="number" 
-                        value={timeout} 
-                        onChange={(e) => setTimeout(parseInt(e.target.value) || 30)}
-                        className="bg-slate-950 border border-slate-850 text-slate-200 rounded-lg p-2 Outline-none font-bold"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 mt-1">
+                  <div className="flex gap-2">
                     <button
                       onClick={handleRunOfflineSimulation}
                       disabled={isSolving}
-                      className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs tracking-wide active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/10"
+                      className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm tracking-wide active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/10"
                     >
                       {isSolving ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                          <span>正在执行多点航迹归化...</span>
+                          <span>正在重调算力...</span>
                         </>
                       ) : (
                         <>
                           <Play className="w-4 h-4 text-indigo-300" />
-                          <span>一键算力重调，刷新空天航线</span>
+                          <span>一键算力重调</span>
                         </>
                       )}
                     </button>
@@ -705,30 +711,32 @@ export default function App() {
                  initial={{ opacity: 0, x: -15 }}
                  animate={{ opacity: 1, x: 0 }}
                  exit={{ opacity: 0, x: -15 }}
-                 className="flex-1 flex flex-col gap-4 overflow-hidden"
+                 className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden h-full"
                >
-                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 py-6 flex flex-col gap-4 shadow-xl shrink-0">
-                   <div className="flex items-center justify-between">
-                     <span className="text-white font-bold text-xs flex items-center gap-1.5">
-                       <Heart className="w-4 h-4 text-emerald-400" />
-                       <span>分院急救医务控制台</span>
-                     </span>
-                     <span className="text-[9px] text-emerald-300 font-mono font-bold bg-emerald-950 px-2.5 py-1 rounded border border-emerald-900">核心单元</span>
+                 {/* Left Column of Hospital Dashboard: Selectors & Booking */}
+                 <div className="flex flex-col gap-5 overflow-hidden h-full">
+                   <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col gap-4 shadow-xl shrink-0">
+                     <div className="flex items-center justify-between">
+                       <span className="text-white font-bold text-sm flex items-center gap-1.5">
+                         <Heart className="w-5 h-5 text-emerald-400" />
+                         <span>🏥 分院急救医务控制总端</span>
+                       </span>
+                       <span className="text-[10px] text-emerald-300 font-mono font-bold bg-emerald-950 px-2.5 py-1 rounded border border-emerald-900">核心单元</span>
+                     </div>
+  
+                     <div className="flex flex-col gap-2.5">
+                       <span className="text-xs text-slate-400 font-sans">选择当前工作的分医院（我方附院）：</span>
+                       <select
+                         value={activeHospitalId}
+                         onChange={(e) => setActiveHospitalId(parseInt(e.target.value) || 1)}
+                         className="bg-slate-950 border border-slate-800 text-slate-100 rounded-lg py-3.5 px-4 text-sm font-bold outline-none cursor-pointer hover:border-slate-700 transition"
+                       >
+                         {config.hospitals.map((h) => (
+                           <option key={h.id} value={h.id}>H{h.id}附院：{h.name}</option>
+                         ))}
+                       </select>
+                     </div>
                    </div>
- 
-                   <div className="flex flex-col gap-2.5">
-                     <span className="text-[11px] text-slate-400 font-sans">选择当前工作的分医院：</span>
-                     <select
-                       value={activeHospitalId}
-                       onChange={(e) => setActiveHospitalId(parseInt(e.target.value) || 1)}
-                       className="bg-slate-950 border border-slate-800 text-slate-100 rounded-lg py-3.5 px-4 text-xs font-bold outline-none"
-                     >
-                       {config.hospitals.map((h) => (
-                         <option key={h.id} value={h.id}>H{h.id}附院：{h.name}</option>
-                       ))}
-                     </select>
-                   </div>
-                 </div>
 
                 {/* Quick booking dispatching packet screen */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shadow-md shrink-0">
@@ -784,9 +792,70 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Right Column of Hospital Dashboard: Status Alerts & Real-Time Booking Lists */}
+              <div className="flex flex-col gap-5 overflow-hidden h-full">
+
+                {/* Hospital Dispatch Tasks (Arriving/Departing) */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col min-h-[160px] max-h-[240px] overflow-hidden shadow-md shrink-0">
+                  <div className="text-white font-bold text-xs flex items-center justify-between border-b border-slate-850 pb-2 shrink-0 select-none">
+                    <span className="flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      <span>本院收发订单状态实时监控 ({config.tasks.filter(t => t.origin === activeHospitalId || t.destination === activeHospitalId).length})</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">LIVE TRACKING</span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-2">
+                    {(() => {
+                      const relevantTasks = config.tasks.filter(t => t.origin === activeHospitalId || t.destination === activeHospitalId);
+                      if (relevantTasks.length === 0) {
+                        return (
+                          <div className="text-slate-500 text-center italic py-6 text-xs">
+                            本院暂无关联急行转运订单。
+                          </div>
+                        );
+                      }
+                      
+                      return relevantTasks.map((t) => {
+                        const isOrigin = t.origin === activeHospitalId;
+                        const isSelected = selectedTask?.id === t.id;
+                        
+                        return (
+                          <div 
+                            key={t.id} 
+                            onClick={() => setSelectedTask(isSelected ? null : t)}
+                            className={`p-2.5 rounded-lg border flex items-center justify-between transition-all gap-2 cursor-pointer ${
+                              isSelected 
+                                ? "bg-emerald-950/20 border-emerald-500" 
+                                : "bg-slate-950/75 border-slate-850 hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-1.5 h-6 rounded-full ${isOrigin ? "bg-amber-500" : "bg-emerald-400"}`} />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-mono font-bold text-slate-200">订单 Task #{t.id}</span>
+                                <span className="text-[10px] text-slate-400 mt-0.5 font-sans">
+                                  {isOrigin ? `📤 发往 H${t.destination}分院` : `📥 送抵自 H${t.origin}分院`}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right flex flex-col gap-0.5">
+                              <span className="text-xs font-mono text-emerald-400 font-bold">{t.weight} kg</span>
+                              <span className="text-[9px] bg-slate-900 border border-slate-850 px-1.5 py-0.2 rounded text-slate-400 font-sans">
+                                {solution?.x_assignments.some(x => x.task_id === t.id) ? "🟢 航线就绪" : "⏳ 队列算解"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
 
                 {/* Berth maintaining lock matrix */}
-                <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col overflow-hidden shadow-md">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col overflow-hidden shadow-md flex-1">
                   <div className="text-white font-bold text-xs flex items-center gap-1.5 border-b border-slate-850 pb-2.5 shrink-0 select-none">
                     <Power className="w-4 h-4 text-emerald-400" />
                     <span>本院停泊位日常检修网格</span>
@@ -801,19 +870,19 @@ export default function App() {
 
                         return (
                           <div key={berthIdx} className="bg-slate-950 p-3 rounded-xl border border-slate-850 flex flex-col gap-2 justify-between">
-                            <div className="flex items-center justify-between text-[11px] font-mono">
+                            <div className="flex items-center justify-between text-xs font-mono">
                               <span className="font-bold text-slate-400">{berthIdx}号 泊船位</span>
                               {isLocked ? (
-                                <span className="bg-rose-950/30 text-rose-400 border border-rose-900/40 px-1.5 py-0.5 rounded text-[9px] font-bold">已挂牌维修</span>
+                                <span className="bg-rose-950/30 text-rose-400 border border-rose-900/40 px-1.5 py-0.5 rounded text-[9px] font-bold">已维修</span>
                               ) : matchedDrone ? (
-                                <span className="bg-indigo-950/30 text-indigo-400 border border-indigo-900/30 px-1.5 py-0.5 rounded text-[9px] font-bold text-indigo-300">备机就位</span>
+                                <span className="bg-indigo-950/30 text-indigo-400 border border-indigo-900/30 px-1.5 py-0.5 rounded text-[9px] font-bold">有备机</span>
                               ) : (
-                                <span className="bg-emerald-950/30 text-emerald-400 border border-emerald-900/30 px-1.5 py-0.5 rounded text-[9px] font-bold">空闲敞开</span>
+                                <span className="bg-emerald-950/30 text-emerald-400 border border-emerald-900/30 px-1.5 py-0.5 rounded text-[9px] font-bold font-sans">空闲</span>
                               )}
                             </div>
                             
                             <div className="flex justify-between items-center text-[10px] text-slate-500 pt-2 border-t border-slate-900">
-                              <span>设备停用锁位：</span>
+                              <span>挂维修锁口：</span>
                               <button onClick={() => handleLockBerthToggle(activeHospitalId, berthIdx)} className="leading-none cursor-pointer">
                                 {isLocked ? (
                                   <ToggleRight className="w-7 h-7 text-rose-500" />
@@ -828,7 +897,8 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
+            </motion.div>
             )}
 
              {/* VIEW C: DRONE TELEMETRIES Diagnostics Perspective */}
@@ -945,98 +1015,72 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Incident alerts console logs */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 h-28 flex flex-col overflow-hidden shadow-md shrink-0">
-            <div className="text-[10px] text-slate-400 flex justify-between border-b border-slate-800 pb-1 shrink-0 font-mono">
-              <span className="flex items-center gap-1">
-                <ScrollText className="w-3.5 h-3.5 text-indigo-400" />
-                <span>实时应急响应流</span>
-              </span>
-              <span className="text-indigo-400">LOGS</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto text-[11px] font-mono py-1.5 flex flex-col gap-1.5 leading-relaxed">
-              {emergencyLogs.length === 0 ? (
-                <div className="text-slate-600 text-center italic py-10">等待空域突发事件注入或应急重组记录流...</div>
-              ) : (
-                emergencyLogs.map((log, index) => (
-                  <div key={index} className="flex gap-1.5 items-start">
-                    <span className="text-slate-600 shrink-0 font-bold">[{log.time}]</span>
-                    <span className={
-                      log.type === "success" 
-                        ? "text-emerald-450 text-emerald-400" 
-                        : log.type === "warning" 
-                          ? "text-rose-400 font-semibold" 
-                          : "text-indigo-300"
-                    }>
-                      {log.msg}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {/* Deleted layout blocks */}
         </section>
+        )}
 
         {/* ========================================================== */}
         {/* COLUMN 2 (8/12): FLIGHT PROJECTOR MAP & RESULTS METRICS */}
         {/* ========================================================== */}
-        <section className="col-span-12 xl:col-span-8 flex flex-col gap-4 overflow-hidden h-full">
+        {(userRole === null || userRole === "admin") && (
+          <section className={`${userRole === null ? 'col-span-12' : 'col-span-12 xl:col-span-9'} flex flex-col gap-4 overflow-hidden h-full relative`}>
           
           {/* Main Visualizer Switcher Tabs */}
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-850 rounded-xl p-1.5 shrink-0 shadow-md">
-            <button
-              onClick={() => setActiveTab("visualizer")}
-              className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeTab === "visualizer"
-                  ? "bg-indigo-600 text-white shadow-lg"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Compass className="w-4 h-4" />
-              <span>🗺️ 航迹规划大屏</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("comparison")}
-              className={`flex-1 py-1 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === "comparison"
-                  ? "bg-indigo-600 text-white shadow-lg"
-                  : "text-slate-400 hover:text-white hover:bg-slate-850"
-              }`}
-            >
-              <BarChart2 className="w-4 h-4" />
-              <span>📊 算法效能对比</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("statistics")}
-              className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeTab === "statistics"
-                  ? "bg-indigo-600 text-white shadow-lg"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <History className="w-4 h-4" />
-              <span>📈 调度统计分析</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("backups")}
-              className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeTab === "backups"
-                  ? "bg-indigo-600 text-white shadow-lg"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Database className="w-4 h-4" />
-              <span>💾 JSON 数据导入</span>
-            </button>
-          </div>
+          {userRole === "admin" && (
+            <div className="flex items-center gap-2 bg-slate-900 border border-slate-850 rounded-xl p-1.5 shrink-0 shadow-md">
+              <button
+                onClick={() => setActiveTab("visualizer")}
+                className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "visualizer"
+                    ? "bg-indigo-600 text-white shadow-lg"
+                    : "text-slate-400 hover:text-white hover:bg-slate-850"
+                }`}
+              >
+                <Compass className="w-4 h-4" />
+                <span>🗺️ 航迹规划大屏</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("comparison")}
+                className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "comparison"
+                    ? "bg-indigo-600 text-white shadow-lg"
+                    : "text-slate-400 hover:text-white hover:bg-slate-850"
+                }`}
+              >
+                <BarChart2 className="w-4 h-4" />
+                <span>📊 算法效能对比</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("statistics")}
+                className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "statistics"
+                    ? "bg-indigo-600 text-white shadow-lg"
+                    : "text-slate-400 hover:text-white hover:bg-slate-850"
+                }`}
+              >
+                <History className="w-4 h-4" />
+                <span>📈 调度统计分析</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("backups")}
+                className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "backups"
+                    ? "bg-indigo-600 text-white shadow-lg"
+                    : "text-slate-400 hover:text-white hover:bg-slate-850"
+                }`}
+              >
+                <Database className="w-4 h-4" />
+                <span>💾 JSON 数据导入</span>
+              </button>
+            </div>
+          )}
 
           {/* TAB 1: GEOMETRIC PROJECTION FLIGHT MAP */}
           {activeTab === "visualizer" && (
-            <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-3 gap-4 overflow-hidden">
+            <div className={`flex-1 min-h-0 ${userRole === null ? 'flex' : 'grid grid-cols-1 md:grid-cols-4'} gap-4 overflow-hidden relative`}>
               
               {/* Map SVG Canvas Area */}
-              <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-xl relative overflow-hidden flex flex-col shadow-inner">
+              <div className={`${isMapFullScreen ? 'fixed inset-0 z-50 bg-slate-950 p-4' : `${userRole === null ? 'flex-1' : 'md:col-span-3'} bg-slate-900 border border-slate-800 rounded-xl relative overflow-hidden flex flex-col shadow-inner h-full`}`}>
                 {/* Leg filters overlays */}
                 <div className="absolute top-3 left-3 flex items-center gap-2.5 z-10 bg-slate-950/90 backdrop-blur-sm p-2 rounded-lg border border-slate-800 text-[10px] font-mono shadow-md">
                   <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
@@ -1057,7 +1101,7 @@ export default function App() {
                     />
                     <span className="text-amber-500 font-bold">载实重输 (Leg 2)</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-300 border-l border-slate-800 pl-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-350 text-slate-305 text-slate-300 border-l border-slate-800 pl-2">
                     <input 
                       type="checkbox" 
                       checked={showLeg3} 
@@ -1068,212 +1112,548 @@ export default function App() {
                   </label>
                 </div>
 
-                <div className="absolute top-3 right-3 text-[9px] font-mono text-slate-500 z-10 bg-slate-950/95 px-2.5 py-1 rounded border border-slate-800 shadow-md">
-                  WGS_X: [{minX.toFixed(1)}, {maxX.toFixed(1)}] | Y: [{minY.toFixed(1)}, {maxY.toFixed(1)}]
+                <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
+                  <div className="text-[9px] font-mono text-slate-400 bg-slate-950/95 px-2.5 py-1.5 rounded border border-slate-800 shadow-md select-none hidden sm:block">
+                    纬度/经度轴向定位 | 双击或滚轮缩放 拖拽挪移
+                  </div>
+                  <button
+                    onClick={() => setIsMapFullScreen(!isMapFullScreen)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-650 hover:bg-indigo-600 text-white font-bold text-[10px] font-mono rounded-lg border border-indigo-500/50 shadow-md cursor-pointer transition-all active:scale-95"
+                    title={isMapFullScreen ? "退出全屏" : "全屏放大大屏"}
+                  >
+                    {isMapFullScreen ? <Minimize2 className="w-3.5 h-3.5" strokeWidth={2.5} /> : <Maximize2 className="w-3.5 h-3.5" strokeWidth={2.5} />}
+                    <span>{isMapFullScreen ? "退出全屏" : "全屏大屏"}</span>
+                  </button>
                 </div>
 
-                {/* SVG Live Projection Element */}
-                <div className="flex-1 w-full relative bg-slate-950/40">
-                  <svg className="w-full h-full p-4">
-                    {/* Gridlines */}
-                    <g opacity="0.1">
-                      {Array.from({ length: 9 }).map((_, idx) => {
-                        const pctStr = `${((idx + 1) / 10) * 100}%`;
+                {/* SVG Live Projection Element with interactive mouse controls */}
+                <div 
+                  className="flex-1 w-full relative bg-slate-950/40 select-none cursor-grab active:cursor-grabbing overflow-hidden"
+                  onMouseDown={handleMapMouseDown}
+                  onMouseMove={handleMapMouseMove}
+                  onMouseUp={handleMapMouseUpOrLeave}
+                  onMouseLeave={handleMapMouseUpOrLeave}
+                  onWheel={handleMapWheel}
+                >
+                  <svg 
+                    viewBox="0 0 800 600" 
+                    className="w-full h-full p-4"
+                  >
+                    <style>{`
+                      @keyframes dashflow {
+                        to {
+                          stroke-dashoffset: -40;
+                        }
+                      }
+                      .flowing-line-blue {
+                        stroke-dasharray: 8 6;
+                        animation: dashflow 1.8s linear infinite;
+                      }
+                      .flowing-line-amber {
+                        stroke-dasharray: 12 6;
+                        animation: dashflow 1.2s linear infinite;
+                        filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.7));
+                      }
+                      .flowing-line-emerald {
+                        stroke-dasharray: 8 6;
+                        animation: dashflow 2.0s linear infinite;
+                      }
+                    `}</style>
+                    <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoom})`}>
+                      {/* Base Map Graphic Assets (Highways, rivers, parks, district boundaries mirroring uploaded picture of Jiading) */}
+                      <g opacity="0.48">
+                        {/* 安亭智能中转园区 */}
+                        <rect x={projectX(121.155)} y={projectY(31.345)} width="110" height="90" rx="8" fill="#1e293b" stroke="#64748b" strokeWidth="0.8" strokeDasharray="1 1" />
+                        <text x={projectX(121.155) + 55} y={projectY(31.345) + 48} fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">安亭精密空合区</text>
+
+                        {/* 徐行中转区 */}
+                        <rect x={projectX(121.258)} y={projectY(31.405)} width="90" height="70" rx="8" fill="#1e293b" stroke="#64748b" strokeWidth="0.8" strokeDasharray="1 1" />
+                        <text x={projectX(121.258) + 45} y={projectY(31.405) + 38} fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">徐行编组枢纽区</text>
+
+                        {/* 嘉定新城核心控制区 */}
+                        <circle cx={projectX(121.245)} cy={projectY(31.350)} r="75" fill="#1e293b" stroke="#64748b" strokeWidth="0.8" strokeDasharray="2 2" />
+                        <text x={projectX(121.245)} y={projectY(31.350) + 4} fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">嘉定新城航迹控制核心部</text>
+
+                        {/* 南翔智慧集货组区 */}
+                        <rect x={projectX(121.242)} y={projectY(31.312)} width="130" height="80" rx="8" fill="#1e293b" stroke="#64748b" strokeWidth="0.8" strokeDasharray="1 1" />
+                        <text x={projectX(121.242) + 65} y={projectY(31.312) + 42} fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="sans-serif" textAnchor="middle">南翔医链多维仓配区</text>
+
+                        {/* 安亭国际汽车城核心制造基地 */}
+                        <rect x={projectX(121.145)} y={projectY(31.305)} width="95" height="50" rx="6" fill="#111827" stroke="#4b5563" strokeWidth="0.7" strokeDasharray="3 3" />
+                        <text x={projectX(121.145) + 47} y={projectY(31.305) + 28} fill="#94a3b8" fontSize="10" fontWeight="semibold" textAnchor="middle">安亭汽车城制造基地</text>
+
+                        {/* 远香湖 & 嘉定中央公园 (High contrast eco-scenery) */}
+                        <rect x={projectX(121.248)} y={projectY(31.342)} width="60" height="30" rx="6" fill="#064e3b" opacity="0.45" />
+                        <circle cx={projectX(121.258)} cy={projectY(31.332)} r="14" fill="#0369a1" opacity="0.55" />
+                        <text x={projectX(121.258)} y={projectY(31.332) + 3} fill="#93c5fd" fontSize="9" fontWeight="bold" textAnchor="middle" opacity="0.95">远香湖</text>
+                        <text x={projectX(121.278)} y={projectY(31.353)} fill="#a7f3d0" fontSize="9" fontWeight="bold" textAnchor="middle" opacity="0.95">中央绿地公园</text>
+
+                        {/* 上海国际赛车场 (F1 Track) */}
+                        <path d={`M ${projectX(121.21)} ${projectY(31.34)} Q ${projectX(121.222)} ${projectY(31.352)}, ${projectX(121.22)} ${projectY(31.33)} T ${projectX(121.205)} ${projectY(31.325)} Z`} fill="none" stroke="#ef4444" strokeWidth="1.8" opacity="0.45" />
+                        <text x={projectX(121.218)} y={projectY(31.348)} fill="#fca5a5" fontSize="9.5" fontWeight="semibold" opacity="0.9">上海国际赛车场 (F1)</text>
+
+                        {/* 上海地铁11号线 (High tech dashed purple railway line) */}
+                        <path d={`M ${projectX(121.14)} ${projectY(31.34)} Q ${projectX(121.20)} ${projectY(31.35)}, ${projectX(121.238)} ${projectY(31.365)} T ${projectX(121.28)} ${projectY(31.29)}`} fill="none" stroke="#a855f7" strokeWidth="2.5" opacity="0.45" />
+                        <path d={`M ${projectX(121.14)} ${projectY(31.34)} Q ${projectX(121.20)} ${projectY(31.35)}, ${projectX(121.238)} ${projectY(31.365)} T ${projectX(121.28)} ${projectY(31.29)}`} fill="none" stroke="#e9d5ff" strokeWidth="1" strokeDasharray="5 5" opacity="0.8" />
+                        <text x={projectX(121.23)} y={projectY(31.354)} fill="#d8b4fe" fontSize="9" fontFamily="sans-serif" fontWeight="semibold" opacity="0.95">轨道交通11号线 (嘉定段)</text>
+
+                        {/* Major rivers of Jiading District (Suzhou River & Wusong canal) */}
+                        <path d={`M ${projectX(121.14)} ${projectY(31.31)} Q ${projectX(121.20)} ${projectY(31.305)}, ${projectX(121.24)} ${projectY(31.295)} T ${projectX(121.30)} ${projectY(31.29)}`} fill="none" stroke="#0891b2" strokeWidth="15" strokeLinecap="round" opacity="0.4" />
+                        <path d={`M ${projectX(121.14)} ${projectY(31.31)} Q ${projectX(121.20)} ${projectY(31.305)}, ${projectX(121.24)} ${projectY(31.295)} T ${projectX(121.30)} ${projectY(31.29)}`} fill="none" stroke="#0e7490" strokeWidth="6" strokeLinecap="round" opacity="0.6" />
+
+                        {/* Hengli River/canal going North-South */}
+                        <path d={`M ${projectX(121.235)} ${projectY(31.43)} Q ${projectX(121.241)} ${projectY(31.37)}, ${projectX(121.248)} ${projectY(31.33)} T ${projectX(121.258)} ${projectY(31.28)}`} fill="none" stroke="#0891b2" strokeWidth="5" strokeLinecap="round" opacity="0.3" />
+
+                        {/* Lianqi River going East-West through Jiading Town */}
+                        <path d={`M ${projectX(121.14)} ${projectY(31.375)} L ${projectX(121.30)} ${projectY(31.382)}`} fill="none" stroke="#0891b2" strokeWidth="4" strokeLinecap="round" opacity="0.25" />
+
+                        {/* Main Highways (Yellow / Orange high contrast lines resembling picture map) */}
+                        {/* G15 Shenhai Expressway (North-South) */}
+                        <path d={`M ${projectX(121.21)} ${projectY(31.43)} L ${projectX(121.225)} ${projectY(31.28)}`} fill="none" stroke="#f59e0b" strokeWidth="3.2" opacity="0.55" />
+                        <path d={`M ${projectX(121.21)} ${projectY(31.43)} L ${projectX(121.225)} ${projectY(31.28)}`} fill="none" stroke="#ea580c" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.8" />
+                        <text x={projectX(121.21) + 8} y={projectY(31.405)} fill="#f8fafc" fontSize="10.5" fontWeight="bold" fontFamily="monospace" transform={`rotate(10, ${projectX(121.21)}, ${projectY(31.405)})`} opacity="0.95">G15沈海高速</text>
+                      </g>
+
+                      {solution && (
+                        <g>
+                          {solution.x_assignments.map((x, x_idx) => {
+                            const drone = config.drones.find((d) => d.hospital_id === x.hospital_id && d.berth_id === x.berth_id);
+                            const task = config.tasks.find((t) => t.id === x.task_id);
+                            
+                            if (!drone || !task) return null;
+  
+                            const y = solution.y_assignments.find(
+                              (ya) => ya.hospital_id === x.hospital_id && ya.berth_id === x.berth_id && ya.task_id === x.task_id
+                            );
+                            const destId = y ? y.dest_hospital_id : drone.hospital_id;
+                            const destHospital = config.hospitals.find((h) => h.id === destId);
+                            const startHospital = config.hospitals.find((h) => h.id === drone.hospital_id);
+                            const originHospital = config.hospitals.find((h) => h.id === task.origin);
+                            const destTaskHospital = config.hospitals.find((h) => h.id === task.destination);
+  
+                            if (!startHospital || !originHospital || !destTaskHospital || !destHospital) return null;
+  
+                            // Highlight selected tasks / paths
+                            const isSelectedRoute = selectedTask !== null && task.id === selectedTask.id;
+                            const isAnyRouteSelected = selectedTask !== null;
+  
+                            // Projections
+                            const x1_1 = projectX(startHospital.longitude);
+                            const y1_1 = projectY(startHospital.latitude);
+                            const x2_1 = projectX(originHospital.longitude);
+                            const y2_1 = projectY(originHospital.latitude);
+  
+                            const x1_2 = projectX(originHospital.longitude);
+                            const y1_2 = projectY(originHospital.latitude);
+                            const x2_2 = projectX(destTaskHospital.longitude);
+                            const y2_2 = projectY(destTaskHospital.latitude);
+  
+                            const x1_3 = projectX(destTaskHospital.longitude);
+                            const y1_3 = projectY(destTaskHospital.latitude);
+                            const x2_3 = projectX(destHospital.longitude);
+                            const y2_3 = projectY(destHospital.latitude);
+  
+                            // Bezier curve calculations
+                            const path1 = getSymmetricCurvePath(x1_1, y1_1, x2_1, y2_1);
+                            const path2 = getSymmetricCurvePath(x1_2, y1_2, x2_2, y2_2);
+                            const path3 = getSymmetricCurvePath(x1_3, y1_3, x2_3, y2_3);
+  
+                            return (
+                              <g 
+                                key={x_idx}
+                                onMouseEnter={() => setHoveredRoute({
+                                  drone,
+                                  task,
+                                  dest: destHospital,
+                                  leg1: startHospital.id,
+                                  leg2: originHospital.id,
+                                  leg3: destTaskHospital.id,
+                                  energy: (drone.battery_max * (0.3 + Math.random() * 0.4)) || 110
+                                })}
+                                onMouseLeave={() => setHoveredRoute(null)}
+                                onClick={() => setSelectedTask(selectedTask?.id === task.id ? null : task)}
+                                className="cursor-pointer"
+                                opacity={isAnyRouteSelected && !isSelectedRoute ? 0.15 : 1}
+                              >
+                                {/* LEG 1: empty take-off from base */}
+                                {showLeg1 && (
+                                  <g>
+                                    {/* Thick hover buffer path to prevent flickering & keep hover stable */}
+                                    <path
+                                      d={path1}
+                                      stroke="transparent"
+                                      strokeWidth="20"
+                                      fill="none"
+                                      className="cursor-pointer pointer-events-auto"
+                                    />
+                                    <path
+                                      d={path1}
+                                      stroke="url(#sky-grad-blue)"
+                                      strokeWidth={isSelectedRoute ? "4.5" : "2"}
+                                      className="flowing-line-blue pointer-events-none"
+                                      fill="none"
+                                    />
+                                    {(!isAnyRouteSelected || isSelectedRoute) && (
+                                      <g className="pointer-events-none">
+                                        <circle r="4.5" fill="#38bdf8" opacity="0.65">
+                                          <animateMotion dur="3.5s" repeatCount="indefinite" path={path1} />
+                                        </circle>
+                                        <circle r="2" fill="#ffffff">
+                                          <animateMotion dur="3.5s" repeatCount="indefinite" path={path1} />
+                                        </circle>
+                                      </g>
+                                    )}
+                                  </g>
+                                )}
+  
+                                {/* LEG 2: heavy medicine transit */}
+                                {showLeg2 && (
+                                  <g>
+                                    {/* Thick hover buffer path to prevent flickering & keep hover stable */}
+                                    <path
+                                      d={path2}
+                                      stroke="transparent"
+                                      strokeWidth="22"
+                                      fill="none"
+                                      className="cursor-pointer pointer-events-auto"
+                                    />
+                                    <path
+                                      d={path2}
+                                      stroke="url(#sky-grad-amber)"
+                                      strokeWidth={isSelectedRoute ? "6" : "3.5"}
+                                      className="flowing-line-amber pointer-events-none"
+                                      fill="none"
+                                    />
+                                    {(!isAnyRouteSelected || isSelectedRoute) && (
+                                      <g className="pointer-events-none">
+                                        <circle r="6" fill="#f59e0b" opacity="0.7">
+                                          <animateMotion dur="2.4s" repeatCount="indefinite" path={path2} />
+                                        </circle>
+                                        <circle r="3" fill="#ffffff">
+                                          <animateMotion dur="2.4s" repeatCount="indefinite" path={path2} />
+                                        </circle>
+                                      </g>
+                                    )}
+                                  </g>
+                                )}
+  
+                                {/* LEG 3: empty return and park */}
+                                {showLeg3 && (
+                                  <g>
+                                    {/* Thick hover buffer path to prevent flickering & keep hover stable */}
+                                    <path
+                                      d={path3}
+                                      stroke="transparent"
+                                      strokeWidth="20"
+                                      fill="none"
+                                      className="cursor-pointer pointer-events-auto"
+                                    />
+                                    <path
+                                      d={path3}
+                                      stroke="url(#sky-grad-emerald)"
+                                      strokeWidth={isSelectedRoute ? "4.5" : "2"}
+                                      className="flowing-line-emerald pointer-events-none"
+                                      fill="none"
+                                    />
+                                    {(!isAnyRouteSelected || isSelectedRoute) && (
+                                      <g className="pointer-events-none">
+                                        <circle r="4.5" fill="#10b981" opacity="0.65">
+                                          <animateMotion dur="3.2s" repeatCount="indefinite" path={path3} />
+                                        </circle>
+                                        <circle r="2" fill="#ffffff">
+                                          <animateMotion dur="3.2s" repeatCount="indefinite" path={path3} />
+                                        </circle>
+                                      </g>
+                                    )}
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          })}
+                        </g>
+                      )}
+  
+                      {/* Gradient and Marker defs */}
+                      <defs>
+                        <linearGradient id="sky-grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
+                          <stop offset="100%" stopColor="#0369a1" stopOpacity="0.9" />
+                        </linearGradient>
+                        <linearGradient id="sky-grad-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.5" />
+                          <stop offset="100%" stopColor="#b45309" stopOpacity="1" />
+                        </linearGradient>
+                        <linearGradient id="sky-grad-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
+                          <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
+                        </linearGradient>
+ 
+                        {/* Arrows orientation markers */}
+                        <marker id="arrow-blue" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38bdf8" />
+                        </marker>
+                        <marker id="arrow-amber" viewBox="0 0 10 10" refX="20" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f59e0b" />
+                        </marker>
+                        <marker id="arrow-emerald" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#10b981" />
+                        </marker>
+                      </defs>
+ 
+                      {/* HOSPITALS LAYER */}
+                      {(() => {
+                        const overlappingHospitals = new Set<number>();
+                        for (let i = 0; i < config.hospitals.length; i++) {
+                          const h1 = config.hospitals[i];
+                          const x1 = projectX(h1.longitude);
+                          const y1 = projectY(h1.latitude);
+                          for (let j = i + 1; j < config.hospitals.length; j++) {
+                            const h2 = config.hospitals[j];
+                            const x2 = projectX(h2.longitude);
+                            const y2 = projectY(h2.latitude);
+                            const dx = x1 - x2;
+                            const dy = y1 - y2;
+                            const distInModel = Math.sqrt(dx * dx + dy * dy);
+                            const distOnScreen = distInModel * zoom;
+                            // Threshold: 26px on-screen distance
+                            if (distOnScreen < 26) {
+                              overlappingHospitals.add(h1.id);
+                              overlappingHospitals.add(h2.id);
+                            }
+                          }
+                        }
+
+                        return config.hospitals.map((h) => {
+                          const isSelected = selectedHospital?.id === h.id;
+                          const isActiveActing = activeHospitalId === h.id;
+                          const isOverlapping = overlappingHospitals.has(h.id);
+                          return (
+                            <g 
+                              key={h.id}
+                              className={`cursor-pointer group transition-opacity duration-200 ${
+                                isOverlapping ? "opacity-35 hover:opacity-95" : "opacity-85 hover:opacity-100"
+                              }`}
+                              onClick={() => {
+                                setSelectedHospital(h);
+                                setSelectedTask(null);
+                              }}
+                            >
+                              {/* Outer delicate ring */}
+                              <circle
+                                cx={projectX(h.longitude)}
+                                cy={projectY(h.latitude)}
+                                r={(isSelected ? 10.5 : 8) / zoom}
+                                fill="none"
+                                stroke={isActiveActing ? "#34d399" : h.type === "central" ? "#818cf8" : "#94a3b8"}
+                                strokeWidth={(isActiveActing ? 2.2 : 1.4) / zoom}
+                                className="transition-all duration-300"
+                              />
+                              {/* Inner core solid point */}
+                              <circle
+                                cx={projectX(h.longitude)}
+                                cy={projectY(h.latitude)}
+                                r={(isSelected ? 5.5 : 4) / zoom}
+                                fill={isActiveActing ? "#10b981" : h.type === "central" ? "#6366f1" : "#334155"}
+                                stroke={isActiveActing ? "#a7f3d0" : h.type === "central" ? "#c7d2fe" : "#cbd5e1"}
+                                strokeWidth={1.2 / zoom}
+                                className="transition-all duration-300 filter drop-shadow-[0_0_2px_rgba(99,102,241,0.5)]"
+                              />
+                              {/* Outer pulse decoration for central hub hospital */}
+                              {h.type === "central" && (
+                                <circle
+                                  cx={projectX(h.longitude)}
+                                  cy={projectY(h.latitude)}
+                                  r={15.5 / zoom}
+                                  stroke="#818cf8"
+                                  strokeWidth={1 / zoom}
+                                  strokeOpacity="0.45"
+                                  fill="none"
+                                  className="animate-pulse"
+                                />
+                              )}
+                              <text
+                                x={projectX(h.longitude)}
+                                y={projectY(h.latitude) - (13 / zoom)}
+                                textAnchor="middle"
+                                fill="#f1f5f9"
+                                fontSize={9.5 / zoom}
+                                fontWeight="bold"
+                                fontFamily="monospace"
+                                className="select-none filter drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)] text-slate-300 group-hover:text-white transition-all font-semibold"
+                              >
+                                H{h.id}{isActiveActing && "院"}
+                              </text>
+                            </g>
+                          );
+                        });
+                      })()}
+
+                      {/* URGENT TARGET PULSARS */}
+                      {config.tasks.map((t) => {
+                        const originNode = config.hospitals.find(h => h.id === t.origin);
+                        const destNode = config.hospitals.find(h => h.id === t.destination);
+                        if (!originNode || !destNode) return null;
+                        
+                        const isSelected = selectedTask?.id === t.id;
                         return (
-                          <React.Fragment key={idx}>
-                            <line x1={pctStr} y1="0%" x2={pctStr} y2="100%" stroke="#475569" strokeWidth="0.8" strokeDasharray="3 3" />
-                            <line x1="0%" y1={pctStr} x2="100%" y2={pctStr} stroke="#475569" strokeWidth="0.8" strokeDasharray="3 3" />
-                          </React.Fragment>
+                          <g 
+                            key={t.id}
+                            className="cursor-pointer"
+                            onClick={() => {
+                              setSelectedTask(selectedTask?.id === t.id ? null : t);
+                              setSelectedHospital(null);
+                            }}
+                          >
+                            <circle
+                              cx={projectX(destNode.longitude)}
+                              cy={projectY(destNode.latitude)}
+                              r={(isSelected ? 18 : 14) / zoom}
+                              stroke={isSelected ? "#f43f5e" : "#f59e0b"}
+                              strokeWidth={(isSelected ? 2.5 : 1.2) / zoom}
+                              strokeDasharray={isSelected ? "none" : "3 3"}
+                              fill="none"
+                              opacity={isSelected ? "0.95" : "0.6"}
+                              className="animate-pulse"
+                            />
+                          </g>
                         );
                       })}
                     </g>
 
-                    {/* RENDER DYNAMIC CALCULATED OPTIMAL FLIGHT TRAJECTORIES */}
-                    {solution && (
-                      <g>
-                        {solution.x_assignments.map((x, x_idx) => {
-                          const drone = config.drones.find((d) => d.hospital_id === x.hospital_id && d.berth_id === x.berth_id);
-                          const task = config.tasks.find((t) => t.id === x.task_id);
-                          
-                          if (!drone || !task) return null;
-
-                          // Return parking berth destination determination
-                          const y = solution.y_assignments.find(
-                            (ya) => ya.hospital_id === x.hospital_id && ya.berth_id === x.berth_id && ya.task_id === x.task_id
-                          );
-                          const destId = y ? y.dest_hospital_id : drone.hospital_id;
-                          const destHospital = config.hospitals.find((h) => h.id === destId);
-                          const startHospital = config.hospitals.find((h) => h.id === drone.hospital_id);
-                          const originHospital = config.hospitals.find((h) => h.id === task.origin);
-                          const destTaskHospital = config.hospitals.find((h) => h.id === task.destination);
-
-                          if (!startHospital || !originHospital || !destTaskHospital || !destHospital) return null;
-
-                          return (
-                            <g 
-                              key={x_idx}
-                              onMouseEnter={() => setHoveredRoute({
-                                drone,
-                                task,
-                                dest: destHospital,
-                                leg1: startHospital.id,
-                                leg2: originHospital.id,
-                                leg3: destTaskHospital.id,
-                                energy: (drone.battery_max * (0.3 + Math.random() * 0.4)) || 110
-                              })}
-                              onMouseLeave={() => setHoveredRoute(null)}
-                              className="cursor-pointer"
-                            >
-                              {/* LEG 1: empty take-off from base */}
-                              {showLeg1 && (
-                                <>
-                                  <line
-                                    x1={projectX(startHospital.longitude)}
-                                    y1={projectY(startHospital.latitude)}
-                                    x2={projectX(originHospital.longitude)}
-                                    y2={projectY(originHospital.latitude)}
-                                    stroke="url(#sky-grad-blue)"
-                                    strokeWidth="1.5"
-                                    strokeDasharray="4 2"
-                                    opacity="0.8"
-                                    className="transition-all"
-                                  />
-                                </>
-                              )}
-
-                              {/* LEG 2: heavy medicine transit */}
-                              {showLeg2 && (
-                                <>
-                                  <line
-                                    x1={projectX(originHospital.longitude)}
-                                    y1={projectY(originHospital.latitude)}
-                                    x2={projectX(destTaskHospital.longitude)}
-                                    y2={projectY(destTaskHospital.latitude)}
-                                    stroke="url(#sky-grad-amber)"
-                                    strokeWidth="3.5"
-                                    opacity="0.95"
-                                  />
-                                </>
-                              )}
-
-                              {/* LEG 3: empty return and park */}
-                              {showLeg3 && (
-                                <>
-                                  <line
-                                    x1={projectX(destTaskHospital.longitude)}
-                                    y1={projectY(destTaskHospital.latitude)}
-                                    x2={projectX(destHospital.longitude)}
-                                    y2={projectY(destHospital.latitude)}
-                                    stroke="url(#sky-grad-emerald)"
-                                    strokeWidth="1.5"
-                                    strokeDasharray="4 2"
-                                    opacity="0.8"
-                                  />
-                                </>
-                              )}
-                            </g>
-                          );
-                        })}
-                      </g>
-                    )}
-
-                    {/* Gradient defs */}
-                    <defs>
-                      <linearGradient id="sky-grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="#0369a1" stopOpacity="0.9" />
-                      </linearGradient>
-                      <linearGradient id="sky-grad-amber" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.5" />
-                        <stop offset="100%" stopColor="#b45309" stopOpacity="1" />
-                      </linearGradient>
-                      <linearGradient id="sky-grad-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* HOSPITALS LAYER */}
-                    {config.hospitals.map((h) => {
-                      const isSelected = selectedHospital?.id === h.id;
-                      const isActiveActing = activeHospitalId === h.id;
-                      return (
-                        <g 
-                          key={h.id}
-                          className="cursor-pointer group"
-                          onClick={() => {
-                            setSelectedHospital(h);
-                            setSelectedTask(null);
-                          }}
-                        >
-                          <circle
-                            cx={projectX(h.longitude)}
-                            cy={projectY(h.latitude)}
-                            r={isSelected ? "11" : "8"}
-                            fill={h.type === "central" ? "#4f46e5" : "#1e293b"}
-                            stroke={isActiveActing ? "#34d399" : "#6366f1"}
-                            strokeWidth={isActiveActing ? "3" : "2"}
-                            className="transition-all duration-300"
-                          />
-                          {/* Outer pulse decoration for central hub hospital */}
-                          {h.type === "central" && (
-                            <circle
-                              cx={projectX(h.longitude)}
-                              cy={projectY(h.latitude)}
-                              r="15"
-                              stroke="#6366f1"
-                              strokeWidth="1"
-                              strokeOpacity="0.25"
-                              fill="none"
-                              className="animate-pulse"
+                    {/* SCI-FI HUD Grid & Coordinate Borders (Keeps coordinate lines locked to map, but labels docked to viewports edges) */}
+                    <g opacity="0.82" pointerEvents="none">
+                      {/* Pinned Longitudes (Vertical Tracker Lines with docked indicators) */}
+                      {[121.15, 121.17, 121.19, 121.21, 121.23, 121.25, 121.27, 121.29].map((lon) => {
+                        const screenX = panOffset.x + projectX(lon) * zoom;
+                        if (screenX < 5 || screenX > 795) return null;
+                        return (
+                          <g key={`hud-lon-${lon}`}>
+                            {/* Grid Line */}
+                            <line 
+                              x1={screenX} 
+                              y1="25" 
+                              x2={screenX} 
+                              y2="575" 
+                              stroke="#0f172a" 
+                              strokeWidth="0.8" 
+                              strokeDasharray="4 4" 
+                              opacity="0.5"
                             />
-                          )}
-                          <text
-                            x={projectX(h.longitude)}
-                            y={projectY(h.latitude - 1.5)}
-                            textAnchor="middle"
-                            fill="#f8fafc"
-                            fontSize="9"
-                            fontWeight="800"
-                            fontFamily="monospace"
-                            className="bg-slate-950 select-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]"
-                          >
-                            H{h.id}{isActiveActing && "院"}
-                          </text>
-                        </g>
-                      );
-                    })}
+                            {/* Top boundary ticker */}
+                            <text 
+                              x={screenX} 
+                              y="9" 
+                              fill="#38bdf8" 
+                              fontSize="8" 
+                              fontFamily="monospace" 
+                              fontWeight="bold"
+                              textAnchor="middle"
+                            >
+                              {lon.toFixed(2)}
+                            </text>
+                            
+                            {/* Bottom boundary ticker */}
+                            <text 
+                              x={screenX} 
+                              y="597" 
+                              fill="#38bdf8" 
+                              fontSize="8" 
+                              fontFamily="monospace" 
+                              fontWeight="bold"
+                              textAnchor="middle"
+                            >
+                              {lon.toFixed(2)}
+                            </text>
+                          </g>
+                        );
+                      })}
 
-                    {/* URGENT TARGET PULSARS */}
-                    {config.tasks.map((t) => {
-                      const originNode = config.hospitals.find(h => h.id === t.origin);
-                      const destNode = config.hospitals.find(h => h.id === t.destination);
-                      if (!originNode || !destNode) return null;
+                      {/* Pinned Latitudes (Horizontal Tracker Lines with docked indicators) */}
+                      {[31.31, 31.33, 31.35, 31.37, 31.39, 31.41].map((lat) => {
+                        const screenY = panOffset.y + projectY(lat) * zoom;
+                        if (screenY < 25 || screenY > 575) return null;
+                        return (
+                          <g key={`hud-lat-${lat}`}>
+                            {/* Grid Line */}
+                            <line 
+                              x1="25" 
+                              y1={screenY} 
+                              x2="775" 
+                              y2={screenY} 
+                              stroke="#0f172a" 
+                              strokeWidth="0.8" 
+                              strokeDasharray="4 4" 
+                              opacity="0.5"
+                            />
+                            {/* Left boundary ticker */}
+                            <text 
+                              x="4" 
+                              y={screenY + 3} 
+                              fill="#38bdf8" 
+                              fontSize="8" 
+                              fontFamily="monospace" 
+                              fontWeight="bold"
+                              textAnchor="start"
+                            >
+                              {lat.toFixed(2)}
+                            </text>
+                            
+                            {/* Right boundary ticker */}
+                            <text 
+                              x="796" 
+                              y={screenY + 3} 
+                              fill="#38bdf8" 
+                              fontSize="8" 
+                              fontFamily="monospace" 
+                              fontWeight="bold"
+                              textAnchor="end"
+                            >
+                              {lat.toFixed(2)}
+                            </text>
+                          </g>
+                        );
+                      })}
                       
-                      return (
-                        <g 
-                          key={t.id}
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setSelectedTask(t);
-                            setSelectedHospital(null);
-                          }}
-                        >
-                          <circle
-                            cx={projectX(destNode.longitude)}
-                            cy={projectY(destNode.latitude)}
-                            r="14"
-                            stroke="#f59e0b"
-                            strokeWidth="1.2"
-                            strokeDasharray="3 3"
-                            fill="none"
-                            opacity="0.6"
-                            className="animate-pulse"
-                          />
-                        </g>
-                      );
-                    })}
+                      {/* Interactive compass panel */}
+                      <g transform="translate(55, 55)" opacity="0.85">
+                        <circle cx="0" cy="0" r="18" fill="#020617" stroke="#475569" strokeWidth="1" />
+                        <line x1="0" y1="-15" x2="0" y2="15" stroke="#334155" strokeWidth="1" strokeDasharray="1 1" />
+                        <line x1="-15" y1="0" x2="15" y2="0" stroke="#334155" strokeWidth="1" strokeDasharray="1 1" />
+                        <text x="0" y="-21" fill="#94a3b8" fontSize="8" fontWeight="bold" fontFamily="monospace" textAnchor="middle">N</text>
+                        {/* Rotating compass arrow */}
+                        <polygon points="0,-12 3,0 0,3 -3,0" fill="#f43f5e" transform="rotate(7)" />
+                        <polygon points="0,12 3,0 0,-3 -3,0" fill="#94a3b8" transform="rotate(7)" />
+                      </g>
+                    </g>
                   </svg>
+
+                  {/* Floating map controls */}
+                  <div className="absolute bottom-4 right-4 flex items-center gap-1.5 z-10 bg-slate-950/95 backdrop-blur-sm p-1.5 rounded-lg border border-slate-800 shadow-xl">
+                    <button 
+                      onClick={() => setZoom(prev => Math.min(prev + 0.25, 4))}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-slate-900 border border-slate-850 text-slate-300 hover:bg-indigo-650 hover:text-white transition-all text-sm font-bold font-mono cursor-pointer"
+                      title="放大 (Zoom In)"
+                    >
+                      +
+                    </button>
+                    <button 
+                      onClick={() => setZoom(prev => Math.max(prev - 0.25, 0.5))}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-slate-900 border border-slate-850 text-slate-300 hover:bg-slate-850 hover:text-white transition-all text-sm font-bold font-mono cursor-pointer"
+                      title="缩小 (Zoom Out)"
+                    >
+                      -
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setZoom(1);
+                        setPanOffset({ x: 0, y: 0 });
+                      }}
+                      className="px-2.5 h-7 flex items-center justify-center rounded bg-slate-900 border border-slate-850 text-[10px] text-slate-300 hover:bg-slate-850 hover:text-white transition-all cursor-pointer font-sans"
+                      title="重置居中 (Reset View)"
+                    >
+                      重置视图
+                    </button>
+                  </div>
 
                   {/* Hover route breakdown stats absolute panel */}
                   {hoveredRoute && (
@@ -1288,6 +1668,84 @@ export default function App() {
                         <div>🔋 估算功耗: <span className="text-emerald-450 text-emerald-400 font-bold">{hoveredRoute.energy.toFixed(1)} J (容量 {hoveredRoute.drone.battery_max}J)</span></div>
                         <div className="bg-slate-900 border border-slate-850 p-2 rounded text-[10px] text-indigo-300 leading-relaxed mt-1">
                           H{hoveredRoute.leg1} (空前飞段) → H{hoveredRoute.leg2} (装载配送段) → H{hoveredRoute.leg3} (卸货段) → H{hoveredRoute.dest.id} (完工收泊口)
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Onboarding selection overlay for userRole === null */}
+                  {userRole === null && (
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-6 z-20">
+                      <div className="max-w-4xl w-full bg-slate-900/95 border border-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col gap-6 text-center backdrop-blur-lg">
+                        <div className="flex flex-col gap-2">
+                          <h2 className="text-lg md:text-xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
+                            <span>分院–中心医疗物资无人机智能集货多段调度系统</span>
+                          </h2>
+                          <p className="text-xs text-slate-400 font-sans max-w-2xl mx-auto">
+                            基于双约束混合整数线性规划 (MILP) 的医疗快线集力智能调度控制枢纽。请选择您的系统签入身份以进入相应终端视角。
+                          </p>
+                        </div>
+
+                        {/* Bento Grid Entrances */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-left mt-4">
+                          
+                          {/* 1. Admin */}
+                          <div 
+                            onClick={() => { setUserRole("admin"); addEmergencyLog("主页签入：已授权总管理员最高管理决策权", "info"); }}
+                            className="bg-slate-950/60 p-6 rounded-xl border border-slate-850 hover:border-indigo-500 hover:bg-slate-950/90 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300 cursor-pointer flex flex-col justify-between group"
+                          >
+                            <div className="flex flex-col gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                <ShieldCheck className="w-5 h-5 animate-pulse" />
+                              </div>
+                              <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">👑 系统总指挥管理员视角</h3>
+                              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                                对嘉定区中心医院及全网卫星站点、空域无人载具、挂扣快件等数据拥有全局管理、一键物理算力重调及多算法对比权限。
+                              </p>
+                            </div>
+                            <button className="mt-5 w-full py-2 bg-indigo-950 hover:bg-indigo-600 border border-indigo-500/30 hover:border-indigo-500 text-indigo-300 hover:text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer">
+                              立即登入总指挥台
+                            </button>
+                          </div>
+
+                          {/* 2. Medical Staff */}
+                          <div 
+                            onClick={() => { setUserRole("hospital"); addEmergencyLog("主页签入：已进入分院临床急救医护视角", "info"); }}
+                            className="bg-slate-950/60 p-6 rounded-xl border border-slate-850 hover:border-emerald-500 hover:bg-slate-950/90 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 cursor-pointer flex flex-col justify-between group"
+                          >
+                            <div className="flex flex-col gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                                <Heart className="w-5 h-5 animate-pulse" />
+                              </div>
+                              <h3 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">🏥 分院临床急救医务视角</h3>
+                              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                                便捷调发配送至本分院、或自本分院起拔的紧急血液标本派单。支持提呈新加急单，快速联动全网智能运输体系。
+                              </p>
+                            </div>
+                            <button className="mt-5 w-full py-2 bg-emerald-950/85 hover:bg-emerald-600 border border-emerald-500/30 hover:border-emerald-500 text-emerald-300 hover:text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer">
+                              进入急救医护视角
+                            </button>
+                          </div>
+
+                          {/* 3. Drone Support Team */}
+                          <div 
+                            onClick={() => { setUserRole("drone_admin"); addEmergencyLog("主页签入：已连接机载设备运维监控总线", "info"); }}
+                            className="bg-slate-950/60 p-6 rounded-xl border border-slate-850 hover:border-amber-500 hover:bg-slate-950/90 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300 cursor-pointer flex flex-col justify-between group"
+                          >
+                            <div className="flex flex-col gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:bg-amber-600 group-hover:text-white transition-all">
+                                <Cpu className="w-5 h-5 animate-pulse" />
+                              </div>
+                              <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">⚡ 机载设备运维测诊视角</h3>
+                              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                                实时监控挂机飞翼能效、遥测电池阻值、并针对偏航、失联、大风切变等物理事故注入防爆离网测试进行极端压测。
+                              </p>
+                            </div>
+                            <button className="mt-5 w-full py-2 bg-amber-950/85 hover:bg-amber-600 border border-amber-500/30 hover:border-amber-500 text-amber-300 hover:text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer">
+                              签入无人机运维端
+                            </button>
+                          </div>
+
                         </div>
                       </div>
                     </div>
@@ -1315,7 +1773,8 @@ export default function App() {
               </div>
 
               {/* RIGHT SIDE PANEL OF VISUALIZER (HOSPITAL DETAILS AND BATTERIES) */}
-              <div className="flex flex-col gap-4 overflow-hidden h-full">
+              {userRole !== null && (
+                <div className="md:col-span-1 flex flex-col gap-4 overflow-hidden h-full">
                 
                 {/* 1. Element Inspector card */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-3 shadow-md shrink-0">
@@ -1411,6 +1870,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
 
@@ -1671,21 +2131,10 @@ export default function App() {
             </div>
           </div>
 
-          {/* 6. Solver output logs buffer */}
-          <div className="bg-slate-950 border border-slate-850 rounded-xl p-3 flex flex-col h-40 overflow-hidden font-mono shrink-0 shadow-md">
-            <div className="text-[10px] text-slate-400 flex justify-between border-b border-slate-900 pb-1 select-none">
-              <span>数学优化算法后台运筹编译器标准输出 (CBC MIP SOLVER ENGINE LOGS)</span>
-              <span className="text-emerald-500 font-bold flex items-center gap-1 animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                ACTIVE MEM BUFFER
-              </span>
-            </div>
-            <div className="flex-1 overflow-y-auto text-[11px] text-zinc-300 py-1.5 whitespace-pre-wrap leading-relaxed">
-              {logs || "排队算力分配中..."}
-            </div>
-          </div>
+          {/* Deleted solver standard logs block */}
 
-        </section>
+          </section>
+        )}
 
       </main>
 
