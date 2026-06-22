@@ -12,6 +12,8 @@ import {
   Hospital, Drone, Task, ProblemConfigData, SolverSolution, ComparisonReport 
 } from "./types";
 import { precomputedCases, PrecomputedCase, JIADING_HOSPITALS } from "./data";
+import DroneSchematic from "./components/DroneSchematic";
+import HospitalRadarScreen from "./components/HospitalRadarScreen";
 
 export default function App() {
   // 1. Role Selection States
@@ -20,7 +22,7 @@ export default function App() {
   const [isMapFullScreen, setIsMapFullScreen] = useState<boolean>(false);
 
   // 2. Scenario Config States - Loaded from our precomputed cases
-  const [activeCaseId, setActiveCaseId] = useState<string>("jiading-low-pressure");
+  const [activeCaseId, setActiveCaseId] = useState<string>("jiading-large-medical-663");
   const [config, setConfig] = useState<ProblemConfigData>(precomputedCases[0].config);
 
   // Interactive Pan / Zoom states for the Map
@@ -108,6 +110,7 @@ export default function App() {
   // 7. Interactive Fault & Maintenance State
   const [lockedBerths, setLockedBerths] = useState<Record<string, boolean>>({});
   const [droneFaults, setDroneFaults] = useState<Record<string, "normal" | "offline" | "battery_drain" | "hardware_error">>({});
+  const [selectedDroneKey, setSelectedDroneKey] = useState<string | null>(null);
   const [emergencyLogs, setEmergencyLogs] = useState<Array<{ time: string; msg: string; type: "info" | "warning" | "success" }>>([]);
 
   // 8. Base Data Imports
@@ -711,7 +714,7 @@ export default function App() {
                  initial={{ opacity: 0, x: -15 }}
                  animate={{ opacity: 1, x: 0 }}
                  exit={{ opacity: 0, x: -15 }}
-                 className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden h-full"
+                 className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden h-full"
                >
                  {/* Left Column of Hospital Dashboard: Selectors & Booking */}
                  <div className="flex flex-col gap-5 overflow-hidden h-full">
@@ -898,6 +901,17 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Column 3 of Hospital Dashboard: Digital Radar Area Big Screen */}
+              <div className="flex flex-col gap-5 overflow-hidden h-full">
+                <HospitalRadarScreen
+                  config={config}
+                  solution={solution}
+                  activeHospitalId={activeHospitalId}
+                  onSelectTask={(task) => setSelectedTask(task)}
+                  selectedTaskId={selectedTask?.id || null}
+                />
+              </div>
             </motion.div>
             )}
 
@@ -908,8 +922,9 @@ export default function App() {
                  initial={{ opacity: 0, x: -15 }}
                  animate={{ opacity: 1, x: 0 }}
                  exit={{ opacity: 0, x: -15 }}
-                 className="flex-1 flex flex-col gap-4 overflow-hidden"
+                 className="flex-1 grid grid-cols-1 xl:grid-cols-2 gap-6 overflow-hidden h-full"
                >
+                 <div className="flex flex-col gap-4 overflow-hidden h-full">
                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 py-6 flex flex-col gap-4 shadow-xl shrink-0">
                    <div className="flex items-center justify-between">
                      <span className="text-white font-bold text-xs flex items-center gap-1.5">
@@ -953,11 +968,31 @@ export default function App() {
                         const matchAssignment = solution?.x_assignments.find(x => x.hospital_id === d.hospital_id && x.berth_id === d.berth_id);
                         const matchTask = matchAssignment ? config.tasks.find(t => t.id === matchAssignment.task_id) : null;
 
+                        const isSelected = selectedDroneKey === faultKey;
+
                         return (
-                          <div key={dIdx} className="bg-slate-950 p-3 rounded-xl border border-slate-850 flex flex-col gap-2 hover:border-slate-700 transition">
+                          <div 
+                            key={dIdx} 
+                            onClick={() => setSelectedDroneKey(isSelected ? null : faultKey)}
+                            className={`bg-slate-950 p-3 rounded-xl border flex flex-col gap-2 hover:border-amber-500/40 transition cursor-pointer select-none relative ${
+                              isSelected 
+                                ? "border-amber-500 bg-amber-950/15 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/20" 
+                                : "border-slate-850 hover:border-slate-700"
+                            }`}
+                          >
                             <div className="flex justify-between items-center text-xs">
-                              <span className="text-amber-400 font-bold">D-H{d.hospital_id}. berth#{d.berth_id}</span>
-                              <span className={`w-2 h-2 rounded-full ${isLocked || currentFault !== "normal" ? "bg-rose-500 animate-pulse" : "bg-emerald-500"}`} />
+                              <span className="text-amber-400 font-bold flex items-center gap-1">
+                                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
+                                <span>D-H{d.hospital_id}. berth#{d.berth_id}</span>
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {isSelected && (
+                                  <span className="text-[8px] uppercase bg-amber-500 text-slate-950 font-bold px-1 py-0.2 rounded font-mono">
+                                    MONITORING
+                                  </span>
+                                )}
+                                <span className={`w-2 h-2 rounded-full ${isLocked || currentFault !== "normal" ? "bg-rose-500 animate-pulse" : "bg-emerald-500"}`} />
+                              </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-400 mt-1">
@@ -988,7 +1023,7 @@ export default function App() {
                               )}
                             </div>
 
-                            <div className="flex justify-between items-center pt-2 border-t border-slate-900 mt-1 text-[10px]">
+                            <div className="flex justify-between items-center pt-2 border-t border-slate-900 mt-1 text-[10px]" onClick={(e) => e.stopPropagation()}>
                               <span className="text-slate-500">模拟突发恶劣特情:</span>
                               <select
                                 value={currentFault}
@@ -1011,7 +1046,18 @@ export default function App() {
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </div>
+
+              {/* Column 2 of Drone Admin View: Drone schematic vector HUD */}
+              <div className="flex flex-col gap-4 overflow-hidden h-full">
+                <DroneSchematic 
+                  selectedDroneKey={selectedDroneKey}
+                  setSelectedDroneKey={setSelectedDroneKey}
+                  config={config}
+                  solution={solution}
+                />
+              </div>
+            </motion.div>
             )}
           </AnimatePresence>
 

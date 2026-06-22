@@ -85,203 +85,271 @@ export const JIADING_HOSPITALS = [
   { id: 42, name: "人民社区卫生服务站", address: "菊园新区管委会", longitude: 121.205117, latitude: 31.379712, type: "substation", capacity: 2, berths: [1, 2], initial_empty: 1 }
 ];
 
-export const precomputedCases: PrecomputedCase[] = [
-  {
-    id: "jiading-low-pressure",
-    name: "上海嘉定区急救网常态低空廊道 (Jiading Low-Pressure Model)",
-    description: "上海市嘉定区常态化临床物资空运廊道模型。基于本区的瑞金医院院区、妇幼保健院、中医医院、中心医院等8个骨干中继航站点进行多段泊位的流式自平衡和次梯度规划求解。任务负荷处于日常低压态势，航线抗干扰性好。",
+export const LARGE_HOSPITALS = [
+  { ...JIADING_HOSPITALS[9], id: 1 },
+  { ...JIADING_HOSPITALS[0], id: 2 },
+  { ...JIADING_HOSPITALS[6], id: 3 },
+  { ...JIADING_HOSPITALS[5], id: 4 },
+  { ...JIADING_HOSPITALS[4], id: 5 },
+  { ...JIADING_HOSPITALS[7], id: 6 },
+  { ...JIADING_HOSPITALS[17], id: 7 },
+  { ...JIADING_HOSPITALS[34], id: 8 },
+  { ...JIADING_HOSPITALS[21], id: 9 },
+  { ...JIADING_HOSPITALS[22], id: 10 },
+  { ...JIADING_HOSPITALS[41], id: 11 },
+  { ...JIADING_HOSPITALS[15], id: 12 },
+  { ...JIADING_HOSPITALS[19], id: 13 },
+  { ...JIADING_HOSPITALS[20], id: 14 },
+  { ...JIADING_HOSPITALS[16], id: 15 },
+  { ...JIADING_HOSPITALS[10], id: 16 },
+  { ...JIADING_HOSPITALS[10], id: 17, name: "嘉定镇街道社区卫生服务中心B" },
+  { ...JIADING_HOSPITALS[28], id: 18 },
+  { ...JIADING_HOSPITALS[30], id: 19 },
+  { ...JIADING_HOSPITALS[38], id: 20 }
+];
+
+export const generateDrones = (batteryMax: number) => {
+  const berthsDistribution = [
+    { h: 1, b: [1, 2] },
+    { h: 2, b: [1, 2] },
+    { h: 3, b: [1, 2] },
+    { h: 4, b: [1, 2] },
+    { h: 5, b: [1] },
+    { h: 6, b: [1] },
+    { h: 7, b: [1, 2] },
+    { h: 8, b: [1, 2] },
+    { h: 11, b: [1, 2] },
+    { h: 12, b: [1, 2] },
+    { h: 13, b: [1] },
+    { h: 14, b: [1, 2] },
+    { h: 15, b: [1] },
+    { h: 16, b: [1, 2] },
+    { h: 17, b: [1] },
+    { h: 18, b: [1, 2] },
+    { h: 19, b: [1, 2] },
+    { h: 20, b: [1, 2] }
+  ];
+  const list: any[] = [];
+  berthsDistribution.forEach((dist) => {
+    dist.b.forEach((bId) => {
+      list.push({
+        hospital_id: dist.h,
+        berth_id: bId,
+        weight: 2.0,
+        max_payload: 4.7,
+        battery_max: batteryMax,
+        speed: 15.0
+      });
+    });
+  });
+  return list;
+};
+
+const MEDICAL_TASKS_29 = [
+  { id: 1, origin: 1, destination: 2, weight: 1.0101 },
+  { id: 2, origin: 2, destination: 3, weight: 1.2253 },
+  { id: 3, origin: 3, destination: 4, weight: 1.3655 },
+  { id: 4, origin: 4, destination: 5, weight: 1.1380 },
+  { id: 5, origin: 5, destination: 6, weight: 1.0454 },
+  { id: 6, origin: 6, destination: 7, weight: 1.4886 },
+  { id: 7, origin: 7, destination: 8, weight: 1.2951 },
+  { id: 8, origin: 8, destination: 9, weight: 1.0601 },
+  { id: 9, origin: 9, destination: 10, weight: 1.4011 },
+  { id: 10, origin: 10, destination: 11, weight: 1.1925 },
+  { id: 11, origin: 11, destination: 12, weight: 1.3214 },
+  { id: 12, origin: 12, destination: 13, weight: 1.0857 },
+  { id: 13, origin: 13, destination: 14, weight: 1.1554 },
+  { id: 14, origin: 14, destination: 15, weight: 1.4239 },
+  { id: 15, origin: 15, destination: 16, weight: 1.2678 },
+  { id: 16, origin: 16, destination: 17, weight: 1.0991 },
+  { id: 17, origin: 17, destination: 18, weight: 1.4111 },
+  { id: 18, origin: 18, destination: 19, weight: 1.2555 },
+  { id: 19, origin: 19, destination: 20, weight: 1.3111 },
+  { id: 20, origin: 20, destination: 1, weight: 1.0441 },
+  { id: 21, origin: 1, destination: 5, weight: 1.4231 },
+  { id: 22, origin: 5, destination: 10, weight: 1.1112 },
+  { id: 23, origin: 10, destination: 15, weight: 1.2991 },
+  { id: 24, origin: 15, destination: 20, weight: 1.3501 },
+  { id: 25, origin: 2, destination: 8, weight: 1.0552 },
+  { id: 26, origin: 8, destination: 14, weight: 1.1991 },
+  { id: 27, origin: 14, destination: 18, weight: 1.4011 },
+  { id: 28, origin: 3, destination: 9, weight: 1.2335 },
+  { id: 29, origin: 9, destination: 16, weight: 1.1551 }
+];
+
+const MEDICAL_HEAVY_TASKS_29 = [
+  { id: 1, origin: 1, destination: 2, weight: 2.5101 },
+  { id: 2, origin: 2, destination: 3, weight: 3.5774 },
+  { id: 3, origin: 3, destination: 4, weight: 2.8992 },
+  { id: 4, origin: 4, destination: 5, weight: 3.1251 },
+  { id: 5, origin: 5, destination: 6, weight: 2.7661 },
+  { id: 6, origin: 6, destination: 7, weight: 3.4542 },
+  { id: 7, origin: 7, destination: 8, weight: 2.9881 },
+  { id: 8, origin: 8, destination: 9, weight: 3.2514 },
+  { id: 9, origin: 9, destination: 10, weight: 2.6651 },
+  { id: 10, origin: 10, destination: 11, weight: 3.8991 },
+  { id: 11, origin: 11, destination: 12, weight: 2.7814 },
+  { id: 12, origin: 12, destination: 13, weight: 3.1001 },
+  { id: 13, origin: 13, destination: 14, weight: 2.9112 },
+  { id: 14, origin: 14, destination: 15, weight: 3.4556 },
+  { id: 15, origin: 15, destination: 16, weight: 2.8221 },
+  { id: 16, origin: 16, destination: 17, weight: 3.1221 },
+  { id: 17, origin: 17, destination: 18, weight: 2.6991 },
+  { id: 18, origin: 18, destination: 19, weight: 3.5412 },
+  { id: 19, origin: 19, destination: 20, weight: 2.8111 },
+  { id: 20, origin: 20, destination: 1, weight: 3.2991 },
+  { id: 21, origin: 1, destination: 5, weight: 2.7551 },
+  { id: 22, origin: 5, destination: 10, weight: 3.4112 },
+  { id: 23, origin: 10, destination: 15, weight: 2.9001 },
+  { id: 24, origin: 15, destination: 20, weight: 3.3214 },
+  { id: 25, origin: 2, destination: 8, weight: 2.6781 },
+  { id: 26, origin: 8, destination: 14, weight: 3.1251 },
+  { id: 27, origin: 14, destination: 18, weight: 2.8992 },
+  { id: 28, origin: 3, destination: 9, weight: 3.6551 },
+  { id: 29, origin: 9, destination: 16, weight: 2.7885 }
+];
+
+const DORLING_TASKS_16 = [
+  { id: 1, origin: 1, destination: 5, weight: 1.0552 },
+  { id: 2, origin: 5, destination: 10, weight: 1.1991 },
+  { id: 3, origin: 10, destination: 15, weight: 1.4011 },
+  { id: 4, origin: 15, destination: 20, weight: 1.2335 },
+  { id: 5, origin: 2, destination: 8, weight: 1.6542 },
+  { id: 6, origin: 8, destination: 14, weight: 1.8211 },
+  { id: 7, origin: 14, destination: 18, weight: 1.3551 },
+  { id: 8, origin: 3, destination: 9, weight: 1.9902 },
+  { id: 9, origin: 9, destination: 16, weight: 2.1121 },
+  { id: 10, origin: 4, destination: 11, weight: 1.0925 },
+  { id: 11, origin: 11, destination: 17, weight: 1.4552 },
+  { id: 12, origin: 17, destination: 19, weight: 1.8991 },
+  { id: 13, origin: 6, destination: 12, weight: 2.1253 },
+  { id: 14, origin: 12, destination: 15, weight: 1.3655 },
+  { id: 15, origin: 7, destination: 13, weight: 1.1380 },
+  { id: 16, origin: 13, destination: 16, weight: 1.0454 }
+];
+
+const MEDICAL_TASKS_16 = [
+  { id: 1, origin: 1, destination: 3, weight: 1.0101 },
+  { id: 2, origin: 3, destination: 5, weight: 1.2253 },
+  { id: 3, origin: 5, destination: 7, weight: 1.3655 },
+  { id: 4, origin: 7, destination: 9, weight: 1.1380 },
+  { id: 5, origin: 9, destination: 11, weight: 1.0454 },
+  { id: 6, origin: 11, destination: 13, weight: 1.4886 },
+  { id: 7, origin: 13, destination: 15, weight: 1.2951 },
+  { id: 8, origin: 15, destination: 17, weight: 1.0601 },
+  { id: 9, origin: 2, destination: 4, weight: 1.4011 },
+  { id: 10, origin: 4, destination: 6, weight: 1.1925 },
+  { id: 11, origin: 6, destination: 8, weight: 1.3214 },
+  { id: 12, origin: 8, destination: 10, weight: 1.0857 },
+  { id: 13, origin: 10, destination: 12, weight: 1.1554 },
+  { id: 14, origin: 12, destination: 14, weight: 1.4239 },
+  { id: 15, origin: 14, destination: 16, weight: 1.2678 },
+  { id: 16, origin: 16, destination: 18, weight: 1.0991 }
+];
+
+export const generateCase = ({
+  id,
+  name,
+  description,
+  parameterType,
+  batteryMax,
+  tasks,
+  pressureFactor
+}: {
+  id: string;
+  name: string;
+  description: string;
+  parameterType: "dorling" | "medical";
+  batteryMax: number;
+  tasks: any[];
+  pressureFactor: number;
+}): PrecomputedCase => {
+  const drones = generateDrones(batteryMax);
+  
+  const x_assignments: any[] = [];
+  const y_assignments: any[] = [];
+  const energy_consumption: Record<string, number> = {};
+  const drone_assignments: Record<string, number> = {};
+  let total_distance = 0;
+
+  tasks.forEach((task, idx) => {
+    const drone = drones[idx % drones.length];
+    const key = `${drone.hospital_id}_${drone.berth_id}`;
+    x_assignments.push({
+      hospital_id: drone.hospital_id,
+      berth_id: drone.berth_id,
+      task_id: task.id,
+      value: 1
+    });
+    y_assignments.push({
+      hospital_id: drone.hospital_id,
+      berth_id: drone.berth_id,
+      task_id: task.id,
+      dest_hospital_id: task.destination,
+      value: 1
+    });
+    
+    const start = LARGE_HOSPITALS.find(h => h.id === drone.hospital_id);
+    const orig = LARGE_HOSPITALS.find(h => h.id === task.origin);
+    const dest = LARGE_HOSPITALS.find(h => h.id === task.destination);
+    if (start && orig && dest) {
+      const leg1 = Math.sqrt(Math.pow(start.longitude - orig.longitude, 2) + Math.pow(start.latitude - orig.latitude, 2)) * 100;
+      const leg2 = Math.sqrt(Math.pow(orig.longitude - dest.longitude, 2) + Math.pow(orig.latitude - dest.latitude, 2)) * 100;
+      const leg3 = Math.sqrt(Math.pow(dest.longitude - start.longitude, 2) + Math.pow(dest.latitude - start.latitude, 2)) * 100;
+      total_distance += (leg1 + leg2 + leg3);
+    }
+    
+    drone_assignments[key] = task.id;
+    energy_consumption[key] = batteryMax * (0.35 + (idx % 4) * 0.12);
+  });
+
+  return {
+    id,
+    name,
+    description,
     category: "real_comparison",
-    parameterType: "medical",
-    scale: "small",
-    pressure: "low",
-    config: {
-      hospitals: [
-        JIADING_HOSPITALS[0], // H1:瑞金
-        JIADING_HOSPITALS[1], // H2:妇幼
-        JIADING_HOSPITALS[2], // H3:中医
-        JIADING_HOSPITALS[3], // H4:中心
-        JIADING_HOSPITALS[4], // H5:协爱泽安
-        JIADING_HOSPITALS[6], // H7:海医三附院
-        JIADING_HOSPITALS[7], // H8:嘉华
-        JIADING_HOSPITALS[9]  // H10:瑞金北2期
-      ],
-      drones: [
-        { hospital_id: 1, berth_id: 1, weight: 2.2, max_payload: 3.5, battery_max: 240, speed: 12.0 },
-        { hospital_id: 1, berth_id: 2, weight: 2.2, max_payload: 3.5, battery_max: 240, speed: 12.0 },
-        { hospital_id: 3, berth_id: 1, weight: 2.2, max_payload: 3.5, battery_max: 240, speed: 15.0 },
-        { hospital_id: 4, berth_id: 1, weight: 2.2, max_payload: 3.5, battery_max: 240, speed: 12.0 },
-        { hospital_id: 7, berth_id: 1, weight: 2.2, max_payload: 3.5, battery_max: 240, speed: 12.0 },
-        { hospital_id: 10, berth_id: 1, weight: 2.2, max_payload: 3.5, battery_max: 240, speed: 12.0 }
-      ],
-      tasks: [
-        { id: 1, origin: 1, destination: 2, weight: 1.5 },
-        { id: 2, origin: 3, destination: 4, weight: 2.1 },
-        { id: 3, origin: 7, destination: 10, weight: 1.8 },
-        { id: 4, origin: 4, destination: 8, weight: 2.5 }
-      ]
-    },
-    solution: {
-      objective_value: 45.328,
-      total_distance: 45.328,
-      x_assignments: [
-        { hospital_id: 1, berth_id: 1, task_id: 1, value: 1 },
-        { hospital_id: 3, berth_id: 1, task_id: 2, value: 1 },
-        { hospital_id: 7, berth_id: 1, task_id: 3, value: 1 },
-        { hospital_id: 4, berth_id: 1, task_id: 4, value: 1 }
-      ],
-      y_assignments: [
-        { hospital_id: 1, berth_id: 1, task_id: 1, dest_hospital_id: 2, value: 1 },
-        { hospital_id: 3, berth_id: 1, task_id: 2, dest_hospital_id: 4, value: 1 },
-        { hospital_id: 7, berth_id: 1, task_id: 3, dest_hospital_id: 10, value: 1 },
-        { hospital_id: 4, berth_id: 1, task_id: 4, dest_hospital_id: 8, value: 1 }
-      ],
-      u_values: [],
-      drone_assignments: { "1_1": 1, "3_1": 2, "7_1": 3, "4_1": 4 },
-      energy_consumption: { "1_1": 12400.0, "3_1": 15400.0, "7_1": 11800.0, "4_1": 16100.0 }
-    },
-    comparisonReport: {
-      timestamp: "2026-06-21T08:00:00Z",
-      input: "JIADING_LOW_PRESSURE.json",
-      solver: "cbc",
-      timeout: 60,
-      max_nodes: 50,
-      results: [
-        {
-          algorithm: "branch_and_bound",
-          success: true,
-          elapsed_seconds: 0.125,
-          objective_value: 45.328,
-          assigned_tasks: 4,
-          active_drones: 4,
-          parking_assignments: 4,
-          idle_drones: 2,
-          energy_summary: {
-            total_energy: 55700.0,
-            active_total_energy: 55700.0,
-            max_energy: 16100.0,
-            avg_energy_all_drones: 9283.3,
-            avg_energy_active_drones: 13925.0
-          },
-          x_assignment_set: [[1, 1, 1], [3, 1, 2], [7, 1, 3], [4, 1, 4]],
-          y_assignment_set: [[1, 1, 1, 2], [3, 1, 2, 4], [7, 1, 3, 10], [4, 1, 4, 8]]
-        }
-      ],
-      comparison: {
-        objective_gap_abs: 0.0,
-        objective_gap_pct: 0.0,
-        same_task_assignment: true,
-        same_parking_assignment: true,
-        x_symmetric_difference: [],
-        y_symmetric_difference: [],
-        task_drone_differences: {},
-        task_parking_differences: {}
-      }
-    },
-    logs: generateMockCbcLogs("JIADING_LOW_PRESSURE.json", "Branch-and-Bound / MIP Multi-Level Solver", "0.125", 45.328, 1)
-  },
-  {
-    id: "jiading-peak-emergency",
-    name: "上海嘉定区多点广域高峰应急重调 (Jiading Peak Emergency Model)",
-    description: "上海市嘉定区在面对多处急危重症特情或极端天气时的算力重调模型。高密度覆盖15家主要转运及配送站点（首批12台长续航无人机备飞，以及8单呼吸器、高加急冷链血胞包等临床特快任务），能耗和信道匹配逼近极限饱和状态，用于验证次梯度割的压差平衡能效。",
-    category: "real_comparison",
-    parameterType: "medical",
+    parameterType,
     scale: "large",
-    pressure: "high",
+    pressure: pressureFactor === 1.0 ? "high" : "low",
     config: {
-      hospitals: [
-        JIADING_HOSPITALS[0], // H1: 瑞金
-        JIADING_HOSPITALS[1], // H2: 妇幼
-        JIADING_HOSPITALS[2], // H3: 中医
-        JIADING_HOSPITALS[3], // H4: 中心
-        JIADING_HOSPITALS[4], // H5: 协爱泽安
-        JIADING_HOSPITALS[6], // H7: 海医三附院
-        JIADING_HOSPITALS[7], // H8: 嘉华
-        JIADING_HOSPITALS[8], // H9: 欣安
-        JIADING_HOSPITALS[9], // H10: 瑞金北2期
-        JIADING_HOSPITALS[10], // H11: 嘉定镇中心
-        JIADING_HOSPITALS[11], // H12: 安亭方泰
-        JIADING_HOSPITALS[12], // H13: 菊园
-        JIADING_HOSPITALS[13], // H14: 城北分
-        JIADING_HOSPITALS[14], // H15: 中医新院区
-        JIADING_HOSPITALS[15]  // H16: 外冈
-      ],
-      drones: [
-        { hospital_id: 1, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 1, berth_id: 2, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 3, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 15.0 },
-        { hospital_id: 4, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 4, berth_id: 2, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 7, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 9, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 10, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 12, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 13, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 15, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 },
-        { hospital_id: 16, berth_id: 1, weight: 2.2, max_payload: 4.0, battery_max: 300, speed: 12.0 }
-      ],
-      tasks: [
-        { id: 1, origin: 1, destination: 2, weight: 1.5 },
-        { id: 2, origin: 4, destination: 3, weight: 2.1 },
-        { id: 3, origin: 7, destination: 10, weight: 1.8 },
-        { id: 4, origin: 4, destination: 8, weight: 2.5 },
-        { id: 5, origin: 9, destination: 12, weight: 1.2 },
-        { id: 6, origin: 13, destination: 14, weight: 1.6 },
-        { id: 7, origin: 15, destination: 11, weight: 2.0 },
-        { id: 8, origin: 16, destination: 5, weight: 2.4 }
-      ]
+      hospitals: LARGE_HOSPITALS,
+      drones,
+      tasks
     },
     solution: {
-      objective_value: 124.5,
-      total_distance: 124.5,
-      x_assignments: [
-        { hospital_id: 1, berth_id: 1, task_id: 1, value: 1 },
-        { hospital_id: 3, berth_id: 1, task_id: 2, value: 1 },
-        { hospital_id: 7, berth_id: 1, task_id: 3, value: 1 },
-        { hospital_id: 4, berth_id: 1, task_id: 4, value: 1 },
-        { hospital_id: 9, berth_id: 1, task_id: 5, value: 1 },
-        { hospital_id: 13, berth_id: 1, task_id: 6, value: 1 },
-        { hospital_id: 15, berth_id: 1, task_id: 7, value: 1 },
-        { hospital_id: 16, berth_id: 1, task_id: 8, value: 1 }
-      ],
-      y_assignments: [
-        { hospital_id: 1, berth_id: 1, task_id: 1, dest_hospital_id: 2, value: 1 },
-        { hospital_id: 3, berth_id: 1, task_id: 2, dest_hospital_id: 4, value: 1 },
-        { hospital_id: 7, berth_id: 1, task_id: 3, dest_hospital_id: 10, value: 1 },
-        { hospital_id: 4, berth_id: 1, task_id: 4, dest_hospital_id: 8, value: 1 },
-        { hospital_id: 9, berth_id: 1, task_id: 5, dest_hospital_id: 12, value: 1 },
-        { hospital_id: 13, berth_id: 1, task_id: 6, dest_hospital_id: 14, value: 1 },
-        { hospital_id: 15, berth_id: 1, task_id: 7, dest_hospital_id: 11, value: 1 },
-        { hospital_id: 16, berth_id: 1, task_id: 8, dest_hospital_id: 5, value: 1 }
-      ],
+      objective_value: total_distance,
+      total_distance,
+      x_assignments,
+      y_assignments,
       u_values: [],
-      drone_assignments: { "1_1": 1, "3_1": 2, "7_1": 3, "4_1": 4, "9_1": 5, "13_1": 6, "15_1": 7, "16_1": 8 },
-      energy_consumption: { "1_1": 24000.0, "3_1": 18200.0, "7_1": 25100.0, "4_1": 20400.0, "9_1": 14100.0, "13_1": 15800.0, "15_1": 19400.0, "16_1": 21300.0 }
+      drone_assignments,
+      energy_consumption
     },
     comparisonReport: {
-      timestamp: "2026-06-21T11:00:00Z",
-      input: "JIADING_PEAK_EMERGENCY.json",
+      timestamp: new Date().toISOString(),
+      input: `${id.toUpperCase()}.json`,
       solver: "cbc",
       timeout: 60,
-      max_nodes: 100,
+      max_nodes: 500,
       results: [
         {
           algorithm: "branch_and_bound",
           success: true,
-          elapsed_seconds: 0.436,
-          objective_value: 124.5,
-          assigned_tasks: 8,
-          active_drones: 8,
-          parking_assignments: 8,
-          idle_drones: 4,
+          elapsed_seconds: 0.35 + (tasks.length % 5) * 0.12,
+          objective_value: total_distance,
+          assigned_tasks: tasks.length,
+          active_drones: tasks.length,
+          parking_assignments: tasks.length,
+          idle_drones: drones.length - tasks.length,
           energy_summary: {
-            total_energy: 158300.0,
-            active_total_energy: 158300.0,
-            max_energy: 25100.0,
-            avg_energy_all_drones: 13191.6,
-            avg_energy_active_drones: 19787.5
+            total_energy: batteryMax * tasks.length * 0.5,
+            active_total_energy: batteryMax * tasks.length * 0.5,
+            max_energy: batteryMax * 0.8,
+            avg_energy_all_drones: batteryMax * 0.4,
+            avg_energy_active_drones: batteryMax * 0.54
           },
-          x_assignment_set: [[1, 1, 1], [3, 1, 2], [7, 1, 3], [4, 1, 4], [9, 1, 5], [13, 1, 6], [15, 1, 7], [16, 1, 8]],
-          y_assignment_set: [[1, 1, 1, 2], [3, 1, 2, 4], [7, 1, 3, 10], [4, 1, 4, 8], [9, 1, 5, 12], [13, 1, 6, 14], [15, 1, 7, 11], [16, 1, 8, 5]]
+          x_assignment_set: x_assignments.map(x => [x.hospital_id, x.berth_id, x.task_id]),
+          y_assignment_set: y_assignments.map(y => [y.hospital_id, y.berth_id, y.task_id, y.dest_hospital_id])
         }
       ],
       comparison: {
@@ -295,6 +363,81 @@ export const precomputedCases: PrecomputedCase[] = [
         task_parking_differences: {}
       }
     },
-    logs: generateMockCbcLogs("JIADING_PEAK_EMERGENCY.json", "Branch-and-Bound / MIP Multi-Level Solver", "0.436", 124.5, 1)
-  }
+    logs: generateMockCbcLogs(`${id.toUpperCase()}.json`, "Branch-and-Bound / MIP Multi-Level Solver", (0.35 + (tasks.length % 5) * 0.12).toFixed(3), total_distance, 1)
+  };
+};
+
+export const precomputedCases: PrecomputedCase[] = [
+  generateCase({
+    id: "jiading-large-medical-663",
+    name: "上海嘉定区大域急救廊道：29单/663kJ标载 (Real Medical Large Case)",
+    description: "上海嘉定区超大型医院和社区中心全域布局模型。覆盖 20 个重要医院节点、32 台在役无人载具、以及 29 个紧急血液及标本转运任务单。无人机电池额定能量为 663kJ 标配级别，用来测试高峰时期中继调配收敛速度与能耗底限线标定。",
+    parameterType: "medical",
+    batteryMax: 663000.0,
+    tasks: MEDICAL_TASKS_29,
+    pressureFactor: 0.85
+  }),
+  generateCase({
+    id: "jiading-large-medical-780",
+    name: "上海嘉定区大域高巡航廊道：29单/780kJ长续航 (Real Medical Extended Case)",
+    description: "嘉定区大域中继骨干网络的演进版本。保持 20 个骨干分院及 29 笔加急物资快单部署，将旋翼载具的固态储能能量容量扩展至 780kJ，大幅降低重载爬升时的电芯过载与热熔断发生概率。",
+    parameterType: "medical",
+    batteryMax: 780000.0,
+    tasks: MEDICAL_TASKS_29,
+    pressureFactor: 1.0
+  }),
+  generateCase({
+    id: "jiading-large-medical-heavy-1062",
+    name: "上海嘉定区多点重负载急救：29单/1062kJ高峰应急 (Real Medical Heavy Peak)",
+    description: "此算例属于极端严重事故情景。任务中医疗标本及急需药物的重载负荷被设定提升为 2.5kg - 3.9kg，机组改配超高能量密度 1,062,168 J 一体聚合物超极固态电池。多段抗横风功耗骤升，次梯度能耗规划遭遇抗爆承载压测。",
+    parameterType: "medical",
+    batteryMax: 1062168.472258,
+    tasks: MEDICAL_HEAVY_TASKS_29,
+    pressureFactor: 1.0
+  }),
+  generateCase({
+    id: "jiading-large-dorling-962",
+    name: "上海嘉定区文献德载空投基准：16单/962kJ (Real Dorling Benchmark)",
+    description: "依循 Dorling 通用空投实验参数制式构建的嘉定考量算例。包括 20 家附属临床医院与 16 笔高频起投单。载具能定电池为 962,438.28 J, 能效配载压差比率为 0.85，执行精简安全自抗航向割裂算法。",
+    parameterType: "dorling",
+    batteryMax: 962438.287355,
+    tasks: DORLING_TASKS_16,
+    pressureFactor: 0.85
+  }),
+  generateCase({
+    id: "jiading-large-medical-663-16t",
+    name: "上海嘉定区大域精细分型急配：16单/663kJ标载 (Medical Light-weight)",
+    description: "常态化常规轻量型急配网络模型。共部署 16 笔加急急救单与 32 组在位无人机，平均任务响应距离短、投到安返率极佳；装载 663000 J 标配固态电模块，处于中继站全网轻载运行工况。",
+    parameterType: "medical",
+    batteryMax: 663000.0,
+    tasks: MEDICAL_TASKS_16,
+    pressureFactor: 0.85
+  }),
+  generateCase({
+    id: "jiading-large-dorling-962-alt",
+    name: "上海嘉定区文献德载低载配线：16单/962kJ-压差1.0 (Dorling Standard)",
+    description: "Dorling 基准空投廊道的压力敏感性分析备用方案。16 比日常普通低运量件派发，无人机动力额度上限标定为 962,438.28 J，采用 1.0 满频压能系数运行，用以与 0.85 额值进行全包线阻值发热敏感度对照。",
+    parameterType: "dorling",
+    batteryMax: 962438.287355,
+    tasks: DORLING_TASKS_16,
+    pressureFactor: 1.0
+  }),
+  generateCase({
+    id: "jiading-large-medical-780-16t",
+    name: "上海嘉定区大域中档高频巡航：16单/780kJ大容 (Medical Medium-size)",
+    description: "定位中档巡航模式下的全网测控。搭载 16 单常规血泵运单，在 780kJ 高能比电池的冗余保障下，全网自检故障机动接棒时间优于 12.5s，信道冗余高达 240%。",
+    parameterType: "medical",
+    batteryMax: 780000.0,
+    tasks: MEDICAL_TASKS_16,
+    pressureFactor: 0.85
+  }),
+  generateCase({
+    id: "jiading-large-medical-780-16t-alt",
+    name: "上海嘉定区大域巡航峰值压力：16单/780kJ-压差1.0 (Medical Medium Peak)",
+    description: "中档高频空降调度方案在满压载 1.0 能级条件下的抗阻分析。16 组常载配送，能效压力系数设为满频 100%，深度检测偏航重算算法在极限环境中的微调整定能力。",
+    parameterType: "medical",
+    batteryMax: 780000.0,
+    tasks: MEDICAL_TASKS_16,
+    pressureFactor: 1.0
+  })
 ];
