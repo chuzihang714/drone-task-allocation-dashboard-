@@ -190,6 +190,36 @@ app.post("/api/compare", (req, res) => {
   });
 });
 
+// Serve user attached images dynamically from multiple potential locations
+app.get("/input_file_:id.:ext", (req, res) => {
+  const { id, ext } = req.params;
+  const fileName = `input_file_${id}.${ext}`;
+  const possiblePaths = [
+    path.join(process.cwd(), fileName),
+    path.join(process.cwd(), "public", fileName),
+    path.join(process.cwd(), "assets", fileName),
+    `/${fileName}`,
+    `/app/${fileName}`
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      console.log(`[Static Asset Proxy] Serving matching asset: ${p}`);
+      return res.sendFile(p);
+    }
+  }
+
+  // Debugging info if file not found
+  console.warn(`[Static Asset Proxy] Requested asset not found: ${fileName}. Checked: ${JSON.stringify(possiblePaths)}`);
+  try {
+    const rootFiles = fs.readdirSync(process.cwd());
+    const matchedFiles = rootFiles.filter(f => f.includes("input_file"));
+    console.log(`[Static Asset Proxy] Current CWD has files containing 'input_file': ${JSON.stringify(matchedFiles)}`);
+  } catch (err) {}
+
+  res.status(404).send("File not found");
+});
+
 async function startServer() {
   // Vite integration middleware as requested
   if (process.env.NODE_ENV !== "production") {
